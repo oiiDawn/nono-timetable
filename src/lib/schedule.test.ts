@@ -19,6 +19,7 @@ import type { LessonFormValues, LessonRule } from "@/types/lesson";
 
 const baseRule: LessonRule = {
   id: "rule-1",
+  version: 1,
   title: "钢琴课",
   startDate: "2026-07-06",
   startTime: "09:00",

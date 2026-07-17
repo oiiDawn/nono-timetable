@@ -10,6 +10,7 @@ import {
   startOfDay,
   startOfMonth,
 } from "date-fns";
+import { createId } from "@/lib/utils";
 import type {
   ConflictInfo,
   LessonFormValues,
@@ -442,7 +443,8 @@ export function formValuesToRule(
     : null;
 
   return {
-    id: existing?.id ?? crypto.randomUUID(),
+    id: existing?.id ?? createId(),
+    version: existing?.version ?? 0,
     title: values.title.trim(),
     startDate: values.startDate,
     startTime: values.startTime,

@@ -1,17 +1,24 @@
-import { useMemo, useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays } from "date-fns";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { WeekView } from "@/components/WeekView";
 import {
-  deleteLessonRule,
-  getAllLessonRules,
-  getLessonRule,
-  saveLessonRule,
-} from "@/lib/db";
+  ApiError,
+  createLesson,
+  fetchLessons,
+  getCalendarUrl,
+  getSession,
+  login,
+  logout,
+  migrateLegacyLessons,
+  removeLesson,
+  updateLesson,
+} from "@/lib/api";
+import { getLegacyLessonRules } from "@/lib/db";
 import {
   expandRulesForRange,
   findConflictsForRule,
@@ -30,7 +37,12 @@ import {
   validateFormValues,
   type CalendarViewMode,
 } from "@/lib/schedule";
-import type { ConflictInfo, LessonFormValues, LessonInstance } from "@/types/lesson";
+import type {
+  ConflictInfo,
+  LessonFormValues,
+  LessonInstance,
+  LessonRule,
+} from "@/types/lesson";
 
 type FormMode = "create" | "edit";
 
@@ -50,6 +62,11 @@ function createDefaultFormValues(date?: string): LessonFormValues {
 }
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [rules, setRules] = useState<LessonRule[]>([]);
+  const loadingRef = useRef(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => loadStoredViewMode());
   const [monthStart, setMonthStart] = useState(() => getMonthStart(new Date()));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
@@ -64,7 +81,6 @@ export default function App() {
   );
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
 
-  const rules = useLiveQuery(() => getAllLessonRules(), []) ?? [];
   const weekEnd = addDays(weekStart, 6);
   const monthRange = getMonthGridRange(monthStart);
 
@@ -81,6 +97,57 @@ export default function App() {
   const calendarTitle =
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
 
+  const handleApiError = async (error: unknown) => {
+    if (error instanceof ApiError && error.status === 401) {
+      setAuthenticated(false);
+      setRules([]);
+      return;
+    }
+    window.alert(error instanceof Error ? error.message : "操作失败，请重试。");
+  };
+
+  const loadCloudLessons = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      let cloudRules = await fetchLessons();
+      if (cloudRules.length === 0) {
+        const legacyRules = await getLegacyLessonRules().catch(() => []);
+        if (
+          legacyRules.length > 0 &&
+          window.confirm(`发现 ${legacyRules.length} 条本地课程，是否迁移到云端？`)
+        ) {
+          await migrateLegacyLessons(legacyRules);
+          cloudRules = await fetchLessons();
+          window.alert(`已成功迁移 ${cloudRules.length} 条课程。旧本地数据暂时保留。`);
+        }
+      }
+      setRules(cloudRules);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setAuthenticated(false);
+        setRules([]);
+      } else {
+        setLoadError(error instanceof Error ? error.message : "课表加载失败");
+      }
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void getSession()
+      .then(setAuthenticated)
+      .catch(() => setAuthenticated(false));
+  }, []);
+
+  useEffect(() => {
+    if (authenticated) void loadCloudLessons();
+  }, [authenticated]);
+
   const openCreateForm = (date: string, startTime = "09:00", endTime = "10:00") => {
     setFormMode("create");
     setEditingRuleId(null);
@@ -93,8 +160,8 @@ export default function App() {
     setFormOpen(true);
   };
 
-  const openEditForm = async (instance: LessonInstance) => {
-    const rule = await getLessonRule(instance.ruleId);
+  const openEditForm = (instance: LessonInstance) => {
+    const rule = rules.find((item) => item.id === instance.ruleId);
     if (!rule) {
       return;
     }
@@ -120,9 +187,17 @@ export default function App() {
       return;
     }
 
-    await deleteLessonRule(editingRuleId);
-    setPendingConflicts([]);
-    setFormOpen(false);
+    const rule = rules.find((item) => item.id === editingRuleId);
+    if (!rule) return;
+    try {
+      await removeLesson(rule);
+      setRules((current) => current.filter((item) => item.id !== rule.id));
+      setPendingConflicts([]);
+      setFormOpen(false);
+    } catch (error) {
+      await handleApiError(error);
+      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
+    }
   };
 
   const handleSubmit = async (values: LessonFormValues) => {
@@ -132,28 +207,43 @@ export default function App() {
       return;
     }
 
-    const existing = editingRuleId ? await getLessonRule(editingRuleId) : undefined;
-    const nextRule = formValuesToRule(values, existing);
-    const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
+    try {
+      const existing = editingRuleId
+        ? rules.find((rule) => rule.id === editingRuleId)
+        : undefined;
+      const nextRule = formValuesToRule(values, existing);
+      const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
 
-    const conflictRangeStart = getWeekStart(new Date(nextRule.startDate));
-    const conflictRangeEnd = addDays(conflictRangeStart, 365 * 2);
-    const conflicts = findConflictsForRule(
-      nextRule,
-      [...otherRules, nextRule],
-      conflictRangeStart,
-      conflictRangeEnd,
-    );
+      const conflictRangeStart = getWeekStart(parseDate(nextRule.startDate));
+      const conflictRangeEnd = addDays(conflictRangeStart, 365 * 2);
+      const conflicts = findConflictsForRule(
+        nextRule,
+        [...otherRules, nextRule],
+        conflictRangeStart,
+        conflictRangeEnd,
+      );
 
-    if (conflicts.length > 0 && pendingConflicts.length === 0) {
-      setPendingConflicts(conflicts);
-      return;
+      if (conflicts.length > 0 && pendingConflicts.length === 0) {
+        setPendingConflicts(conflicts);
+        return;
+      }
+
+      const savedRule = existing
+        ? await updateLesson(nextRule)
+        : await createLesson(nextRule);
+      setRules((current) => {
+        const remaining = current.filter((rule) => rule.id !== savedRule.id);
+        return [...remaining, savedRule].sort((a, b) =>
+          `${a.startDate}-${a.startTime}`.localeCompare(`${b.startDate}-${b.startTime}`),
+        );
+      });
+      setPendingConflicts([]);
+      setFormOpen(false);
+      setSelectedDate(nextRule.startDate);
+    } catch (error) {
+      await handleApiError(error);
+      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
     }
-
-    await saveLessonRule(nextRule);
-    setPendingConflicts([]);
-    setFormOpen(false);
-    setSelectedDate(nextRule.startDate);
   };
 
   const syncNavigationToSelectedDate = (dateKey: string, mode: CalendarViewMode) => {
@@ -200,14 +290,57 @@ export default function App() {
     setWeekStart(getWeekStart(today));
   };
 
+  const copySubscriptionUrl = async () => {
+    try {
+      const url = await getCalendarUrl();
+      await navigator.clipboard.writeText(url);
+      window.alert("Apple Calendar 订阅地址已复制。");
+    } catch (error) {
+      await handleApiError(error);
+    }
+  };
+
+  if (authenticated === null) {
+    return <div className="grid h-dvh place-items-center text-sm text-muted-foreground">正在检查登录状态…</div>;
+  }
+
+  if (!authenticated) {
+    return <LoginScreen onAuthenticated={() => setAuthenticated(true)} />;
+  }
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-muted/30">
       <header className="shrink-0 border-b bg-background">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <h1 className="text-2xl font-bold">排课表</h1>
-          <Button variant="outline" onClick={goToToday}>
-            回到今天
-          </Button>
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <img
+              src="/app-icon-96.png"
+              alt=""
+              className="size-10 rounded-xl"
+              width="40"
+              height="40"
+            />
+            <h1 className="text-2xl font-bold">排课表</h1>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => void copySubscriptionUrl()}>
+              复制订阅地址
+            </Button>
+            <Button variant="outline" onClick={goToToday}>回到今天</Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void logout()
+                  .catch(() => undefined)
+                  .finally(() => {
+                    setRules([]);
+                    setAuthenticated(false);
+                  })
+              }
+            >
+              退出
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -221,8 +354,19 @@ export default function App() {
             onNext={handleNext}
           />
 
+          {loadError ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+              <p>{loadError}</p>
+              <Button className="mt-3" variant="outline" onClick={() => void loadCloudLessons()}>
+                重新加载
+              </Button>
+            </div>
+          ) : null}
+
           <div className="min-h-0 flex-1 overflow-hidden">
-            {viewMode === "month" ? (
+            {loading ? (
+              <div className="grid h-full place-items-center text-sm text-muted-foreground">正在加载云端课表…</div>
+            ) : viewMode === "month" ? (
               <MonthView
                 monthStart={monthStart}
                 instances={monthInstances}
@@ -263,5 +407,57 @@ export default function App() {
         onSubmit={handleSubmit}
       />
     </div>
+  );
+}
+
+function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <main className="grid min-h-dvh place-items-center bg-muted/30 px-4">
+      <form
+        className="w-full max-w-sm space-y-5 rounded-xl border bg-background p-6 shadow-sm"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSubmitting(true);
+          setError(null);
+          void login(password)
+            .then(onAuthenticated)
+            .catch((reason: unknown) =>
+              setError(reason instanceof Error ? reason.message : "登录失败"),
+            )
+            .finally(() => setSubmitting(false));
+        }}
+      >
+        <div className="flex items-center gap-4">
+          <img
+            src="/app-icon-96.png"
+            alt=""
+            className="size-16 rounded-2xl shadow-sm"
+            width="64"
+            height="64"
+          />
+          <div>
+            <h1 className="text-2xl font-bold">排课表</h1>
+            <p className="mt-1 text-sm text-muted-foreground">请输入个人密码继续。</p>
+          </div>
+        </div>
+        <Input
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="个人密码"
+          required
+          autoFocus
+        />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Button className="w-full" type="submit" disabled={submitting}>
+          {submitting ? "正在登录…" : "登录"}
+        </Button>
+      </form>
+    </main>
   );
 }

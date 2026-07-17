@@ -9,6 +9,7 @@ export interface RepeatRule {
 
 export interface LessonRule {
   id: string;
+  version: number;
   title: string;
   startDate: string;
   startTime: string;
