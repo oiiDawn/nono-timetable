@@ -1,4 +1,3 @@
-import type { LegacyLessonRule } from "@/lib/db";
 import type { LessonRule } from "@/types/lesson";
 
 export class ApiError extends Error {
@@ -64,15 +63,6 @@ export async function removeLesson(rule: LessonRule): Promise<void> {
     method: "DELETE",
     body: JSON.stringify({ version: rule.version }),
   });
-}
-
-export async function migrateLegacyLessons(rules: LegacyLessonRule[]): Promise<number> {
-  const lessons = rules.map((rule) => ({ ...rule, version: rule.version ?? 0 }));
-  const result = await requestJson<{ migrated: number }>("/api/migration/indexeddb", {
-    method: "POST",
-    body: JSON.stringify({ lessons }),
-  });
-  return result.migrated;
 }
 
 export async function getCalendarUrl(): Promise<string> {

@@ -14,11 +14,9 @@ import {
   getSession,
   login,
   logout,
-  migrateLegacyLessons,
   removeLesson,
   updateLesson,
 } from "@/lib/api";
-import { getLegacyLessonRules } from "@/lib/db";
 import {
   expandRulesForRange,
   findConflictsForRule,
@@ -112,19 +110,7 @@ export default function App() {
     setLoading(true);
     setLoadError(null);
     try {
-      let cloudRules = await fetchLessons();
-      if (cloudRules.length === 0) {
-        const legacyRules = await getLegacyLessonRules().catch(() => []);
-        if (
-          legacyRules.length > 0 &&
-          window.confirm(`发现 ${legacyRules.length} 条本地课程，是否迁移到云端？`)
-        ) {
-          await migrateLegacyLessons(legacyRules);
-          cloudRules = await fetchLessons();
-          window.alert(`已成功迁移 ${cloudRules.length} 条课程。旧本地数据暂时保留。`);
-        }
-      }
-      setRules(cloudRules);
+      setRules(await fetchLessons());
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setAuthenticated(false);
