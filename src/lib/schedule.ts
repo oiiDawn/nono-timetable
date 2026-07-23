@@ -28,6 +28,7 @@ export const SCHEDULE_DAY_TOTAL_MINUTES =
 export const SCHEDULE_HOUR_COUNT = SCHEDULE_DAY_TOTAL_MINUTES / 60;
 export const SCHEDULE_HOUR_HEIGHT_PX = 56;
 export const SCHEDULE_BODY_HEIGHT_PX = SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
+export const SCHEDULE_TIME_INTERVAL_MINUTES = 5;
 
 export function formatDate(date: Date): string {
   return format(date, "yyyy-MM-dd");
@@ -128,7 +129,7 @@ export function getScheduleTimeOptions(): string[] {
   for (
     let minutes = SCHEDULE_DAY_START_MINUTES;
     minutes <= SCHEDULE_DAY_END_MINUTES;
-    minutes += 15
+    minutes += SCHEDULE_TIME_INTERVAL_MINUTES
   ) {
     options.push(minutesToTime(minutes));
   }
@@ -139,17 +140,19 @@ export function getEndTimeOptions(startTime: string): string[] {
   const startMinutes = timeToMinutes(startTime);
   const options: string[] = [];
   for (
-    let minutes = startMinutes + 15;
+    let minutes = startMinutes + SCHEDULE_TIME_INTERVAL_MINUTES;
     minutes <= SCHEDULE_DAY_END_MINUTES;
-    minutes += 15
+    minutes += SCHEDULE_TIME_INTERVAL_MINUTES
   ) {
     options.push(minutesToTime(minutes));
   }
   return options;
 }
 
-export function snapMinutesToQuarter(minutes: number): number {
-  const snapped = Math.round(minutes / 15) * 15;
+export function snapMinutesToScheduleInterval(minutes: number): number {
+  const snapped =
+    Math.round(minutes / SCHEDULE_TIME_INTERVAL_MINUTES) *
+    SCHEDULE_TIME_INTERVAL_MINUTES;
   return Math.max(
     SCHEDULE_DAY_START_MINUTES,
     Math.min(SCHEDULE_DAY_END_MINUTES, snapped),
@@ -160,7 +163,7 @@ export function getTimeFromClickOffset(offsetY: number, totalHeight: number): st
   const ratio = Math.max(0, Math.min(1, offsetY / totalHeight));
   const minutes =
     SCHEDULE_DAY_START_MINUTES + ratio * SCHEDULE_DAY_TOTAL_MINUTES;
-  return minutesToTime(snapMinutesToQuarter(minutes));
+  return minutesToTime(snapMinutesToScheduleInterval(minutes));
 }
 
 export function getDefaultEndTime(startTime: string): string {
