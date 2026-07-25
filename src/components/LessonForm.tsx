@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { getEndTimeOptions, getScheduleTimeOptions } from "@/lib/schedule";
+import {
+  getDefaultEndTime,
+  getEndTimeOptions,
+  getScheduleTimeOptions,
+} from "@/lib/schedule";
 import type { ConflictInfo, LessonFormValues } from "@/types/lesson";
 
 interface LessonFormProps {
@@ -106,8 +110,20 @@ export function LessonForm({
                 id="startTime"
                 className={nativeSelectClassName}
                 value={values.startTime}
-                onChange={(event) => update("startTime", event.target.value)}
+                onChange={(event) => {
+                  const startTime = event.target.value;
+                  setValues((current) => ({
+                    ...current,
+                    startTime,
+                    endTime: getDefaultEndTime(startTime),
+                  }));
+                }}
               >
+                {!startTimeOptions.includes(values.startTime) ? (
+                  <option value={values.startTime} disabled>
+                    {values.startTime}
+                  </option>
+                ) : null}
                 {startTimeOptions.map((time) => (
                   <option key={time} value={time}>
                     {time}

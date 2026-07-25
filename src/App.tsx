@@ -49,7 +49,7 @@ function createDefaultFormValues(date?: string): LessonFormValues {
     title: "",
     startDate: date ?? formatDate(new Date()),
     startTime: "09:00",
-    endTime: "10:00",
+    endTime: "11:00",
     notes: "",
     isRepeating: false,
     intervalDays: 1,
@@ -134,7 +134,7 @@ export default function App() {
     if (authenticated) void loadCloudLessons();
   }, [authenticated]);
 
-  const openCreateForm = (date: string, startTime = "09:00", endTime = "10:00") => {
+  const openCreateForm = (date: string, startTime = "09:00", endTime = "11:00") => {
     setFormMode("create");
     setEditingRuleId(null);
     setFormValues({

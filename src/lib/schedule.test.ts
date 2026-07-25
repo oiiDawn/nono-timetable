@@ -126,14 +126,15 @@ describe("schedule", () => {
     const endOptions = getEndTimeOptions("09:00");
 
     expect(startOptions.slice(0, 4)).toEqual(["08:00", "08:05", "08:10", "08:15"]);
-    expect(startOptions.at(-1)).toBe("22:00");
+    expect(startOptions.at(-1)).toBe("20:00");
     expect(endOptions.slice(0, 3)).toEqual(["09:05", "09:10", "09:15"]);
   });
 
-  it("snaps click position to five minutes and caps end time", () => {
+  it("defaults lessons to two hours and caps selectable starts at 20:00", () => {
     expect(getTimeFromClickOffset(0, 784)).toBe("08:00");
     expect(getTimeFromClickOffset(5, 784)).toBe("08:05");
-    expect(getDefaultEndTime("21:30")).toBe("22:00");
+    expect(getTimeFromClickOffset(784, 784)).toBe("20:00");
+    expect(getDefaultEndTime("09:30")).toBe("11:30");
   });
 
   it("lays out overlapping lessons side by side", () => {

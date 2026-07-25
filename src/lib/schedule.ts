@@ -23,6 +23,7 @@ export const SCHEDULE_DAY_START = "08:00";
 export const SCHEDULE_DAY_END = "22:00";
 export const SCHEDULE_DAY_START_MINUTES = 8 * 60;
 export const SCHEDULE_DAY_END_MINUTES = 22 * 60;
+export const DEFAULT_LESSON_DURATION_MINUTES = 2 * 60;
 export const SCHEDULE_DAY_TOTAL_MINUTES =
   SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES;
 export const SCHEDULE_HOUR_COUNT = SCHEDULE_DAY_TOTAL_MINUTES / 60;
@@ -128,7 +129,7 @@ export function getScheduleTimeOptions(): string[] {
   const options: string[] = [];
   for (
     let minutes = SCHEDULE_DAY_START_MINUTES;
-    minutes <= SCHEDULE_DAY_END_MINUTES;
+    minutes <= SCHEDULE_DAY_END_MINUTES - DEFAULT_LESSON_DURATION_MINUTES;
     minutes += SCHEDULE_TIME_INTERVAL_MINUTES
   ) {
     options.push(minutesToTime(minutes));
@@ -163,15 +164,16 @@ export function getTimeFromClickOffset(offsetY: number, totalHeight: number): st
   const ratio = Math.max(0, Math.min(1, offsetY / totalHeight));
   const minutes =
     SCHEDULE_DAY_START_MINUTES + ratio * SCHEDULE_DAY_TOTAL_MINUTES;
-  return minutesToTime(snapMinutesToScheduleInterval(minutes));
+  return minutesToTime(
+    Math.min(
+      snapMinutesToScheduleInterval(minutes),
+      SCHEDULE_DAY_END_MINUTES - DEFAULT_LESSON_DURATION_MINUTES,
+    ),
+  );
 }
 
 export function getDefaultEndTime(startTime: string): string {
-  const endMinutes = Math.min(
-    timeToMinutes(startTime) + 60,
-    SCHEDULE_DAY_END_MINUTES,
-  );
-  return minutesToTime(endMinutes);
+  return minutesToTime(timeToMinutes(startTime) + DEFAULT_LESSON_DURATION_MINUTES);
 }
 
 export function timeToTopPercent(time: string): number {
