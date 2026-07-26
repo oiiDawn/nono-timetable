@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { ClockArrowUp, Repeat2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { LessonInstance } from "@/types/lesson";
@@ -103,6 +104,19 @@ export function MonthView({
                       <span className="ml-1 text-[10px] text-muted-foreground">
                         {instance.startTime}
                       </span>
+                      {instance.isRecurring ? (
+                        <span
+                          className="ml-1 inline-flex align-middle text-muted-foreground"
+                          title={instance.isTimeOverride ? "临时调课" : "循环课程"}
+                          aria-label={instance.isTimeOverride ? "临时调课" : "循环课程"}
+                        >
+                          {instance.isTimeOverride ? (
+                            <ClockArrowUp className="size-3" />
+                          ) : (
+                            <Repeat2 className="size-3" />
+                          )}
+                        </span>
+                      ) : null}
                     </button>
                   ))}
 
@@ -138,6 +152,27 @@ export function MonthView({
                               <p className="font-medium">{instance.title}</p>
                               <p className="text-xs text-muted-foreground">
                                 {instance.startTime} - {instance.endTime}
+                                {instance.isRecurring ? (
+                                  <span
+                                    className="ml-1 inline-flex align-middle"
+                                    title={
+                                      instance.isTimeOverride
+                                        ? "临时调课"
+                                        : "循环课程"
+                                    }
+                                    aria-label={
+                                      instance.isTimeOverride
+                                        ? "临时调课"
+                                        : "循环课程"
+                                    }
+                                  >
+                                    {instance.isTimeOverride ? (
+                                      <ClockArrowUp className="size-3" />
+                                    ) : (
+                                      <Repeat2 className="size-3" />
+                                    )}
+                                  </span>
+                                ) : null}
                               </p>
                             </button>
                           ))}

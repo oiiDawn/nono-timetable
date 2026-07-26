@@ -1,6 +1,7 @@
 import {
   addDays,
   addMonths,
+  differenceInCalendarDays,
   format,
   isAfter,
   isBefore,
@@ -17,6 +18,7 @@ import type {
   LessonInstance,
   LessonRule,
   RepeatRule,
+  LessonTimeOverride,
 } from "@/types/lesson";
 
 export const SCHEDULE_DAY_START = "08:00";
@@ -303,6 +305,70 @@ function isWithinRepeatBounds(
   return true;
 }
 
+export function isRuleOccurrenceDate(rule: LessonRule, date: string): boolean {
+  if (!rule.repeat) return false;
+  const difference = differenceInCalendarDays(
+    parseDate(date),
+    parseDate(rule.startDate),
+  );
+  const interval = Math.max(1, rule.repeat.intervalDays);
+  if (difference < 0 || difference % interval !== 0) return false;
+  return isWithinRepeatBounds(parseDate(date), rule.repeat, difference / interval);
+}
+
+export function setTimeOverride(
+  rule: LessonRule,
+  date: string,
+  startTime: string,
+  endTime: string,
+): LessonRule {
+  if (!rule.repeat || !isRuleOccurrenceDate(rule, date)) return rule;
+  const timeOverrides = { ...rule.repeat.timeOverrides };
+  if (startTime === rule.startTime && endTime === rule.endTime) {
+    delete timeOverrides[date];
+  } else {
+    timeOverrides[date] = { startTime, endTime };
+  }
+  return {
+    ...rule,
+    updatedAt: new Date().toISOString(),
+    repeat: {
+      ...rule.repeat,
+      timeOverrides:
+        Object.keys(timeOverrides).length > 0 ? timeOverrides : undefined,
+    },
+  };
+}
+
+export function reconcileTimeOverrides(
+  rule: LessonRule,
+  timeOverrides: Record<string, LessonTimeOverride>,
+): { rule: LessonRule; invalidDates: string[] } {
+  const invalidDates = Object.keys(timeOverrides).filter(
+    (date) => !isRuleOccurrenceDate(rule, date),
+  );
+  if (!rule.repeat) return { rule, invalidDates };
+  const invalidDateSet = new Set(invalidDates);
+
+  const retained = Object.fromEntries(
+    Object.entries(timeOverrides).filter(
+      ([date, time]) =>
+        !invalidDateSet.has(date) &&
+        (time.startTime !== rule.startTime || time.endTime !== rule.endTime),
+    ),
+  );
+  return {
+    invalidDates,
+    rule: {
+      ...rule,
+      repeat: {
+        ...rule.repeat,
+        timeOverrides: Object.keys(retained).length > 0 ? retained : undefined,
+      },
+    },
+  };
+}
+
 export function expandRuleOccurrences(
   rule: LessonRule,
   rangeStart: Date,
@@ -343,14 +409,16 @@ export function expandRuleOccurrences(
 }
 
 function createInstance(rule: LessonRule, date: string): LessonInstance {
+  const timeOverride = rule.repeat?.timeOverrides?.[date];
   return {
     ruleId: rule.id,
     date,
     title: rule.title,
-    startTime: rule.startTime,
-    endTime: rule.endTime,
+    startTime: timeOverride?.startTime ?? rule.startTime,
+    endTime: timeOverride?.endTime ?? rule.endTime,
     notes: rule.notes,
     isRecurring: Boolean(rule.repeat),
+    isTimeOverride: Boolean(timeOverride),
   };
 }
 
@@ -444,6 +512,7 @@ export function formValuesToRule(
         endType: values.endType,
         endCount: values.endType === "count" ? Math.max(1, values.endCount) : undefined,
         endDate: values.endType === "date" ? values.endDate : undefined,
+        timeOverrides: existing?.repeat?.timeOverrides,
       }
     : null;
 

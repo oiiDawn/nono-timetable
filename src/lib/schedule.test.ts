@@ -15,6 +15,8 @@ import {
   isOverflowDay,
   layoutDayInstances,
   parseDate,
+  reconcileTimeOverrides,
+  setTimeOverride,
   validateFormValues,
 } from "@/lib/schedule";
 import type { LessonFormValues, LessonRule } from "@/types/lesson";
@@ -63,6 +65,80 @@ describe("schedule", () => {
     ]);
   });
 
+  it("overrides only the selected occurrence time", () => {
+    const repeatingRule: LessonRule = {
+      ...baseRule,
+      repeat: {
+        intervalDays: 2,
+        endType: "count",
+        endCount: 3,
+        timeOverrides: {
+          "2026-07-08": { startTime: "13:00", endTime: "15:00" },
+        },
+      },
+    };
+
+    const instances = expandRuleOccurrences(
+      repeatingRule,
+      parseDate("2026-07-06"),
+      parseDate("2026-07-10"),
+    );
+
+    expect(instances.map(({ date, startTime, endTime, isTimeOverride }) => ({
+      date,
+      startTime,
+      endTime,
+      isTimeOverride,
+    }))).toEqual([
+      {
+        date: "2026-07-06",
+        startTime: "09:00",
+        endTime: "10:00",
+        isTimeOverride: false,
+      },
+      {
+        date: "2026-07-08",
+        startTime: "13:00",
+        endTime: "15:00",
+        isTimeOverride: true,
+      },
+      {
+        date: "2026-07-10",
+        startTime: "09:00",
+        endTime: "10:00",
+        isTimeOverride: false,
+      },
+    ]);
+  });
+
+  it("restores default time and drops overrides invalidated by a series change", () => {
+    const repeatingRule: LessonRule = {
+      ...baseRule,
+      repeat: {
+        intervalDays: 2,
+        endType: "count",
+        endCount: 3,
+        timeOverrides: {
+          "2026-07-08": { startTime: "13:00", endTime: "15:00" },
+          "2026-07-10": { startTime: "14:00", endTime: "16:00" },
+        },
+      },
+    };
+    const restored = setTimeOverride(repeatingRule, "2026-07-08", "09:00", "10:00");
+    const shortened = {
+      ...restored,
+      repeat: { ...restored.repeat!, endCount: 2 },
+    };
+    const reconciled = reconcileTimeOverrides(
+      shortened,
+      restored.repeat?.timeOverrides ?? {},
+    );
+
+    expect(restored.repeat?.timeOverrides?.["2026-07-08"]).toBeUndefined();
+    expect(reconciled.invalidDates).toEqual(["2026-07-10"]);
+    expect(reconciled.rule.repeat?.timeOverrides).toBeUndefined();
+  });
+
   it("detects overlapping lessons on same day", () => {
     const first = {
       ruleId: "a",
@@ -72,6 +148,7 @@ describe("schedule", () => {
       endTime: "10:00",
       notes: "",
       isRecurring: false,
+      isTimeOverride: false,
     };
     const second = {
       ruleId: "b",
@@ -81,6 +158,7 @@ describe("schedule", () => {
       endTime: "10:30",
       notes: "",
       isRecurring: false,
+      isTimeOverride: false,
     };
 
     const conflict = findConflicts(first, [second]);
@@ -146,6 +224,7 @@ describe("schedule", () => {
       endTime: "10:00",
       notes: "",
       isRecurring: false,
+      isTimeOverride: false,
     };
     const second = {
       ruleId: "b",
@@ -155,6 +234,7 @@ describe("schedule", () => {
       endTime: "10:30",
       notes: "",
       isRecurring: false,
+      isTimeOverride: false,
     };
 
     const layouted = layoutDayInstances([first, second]);

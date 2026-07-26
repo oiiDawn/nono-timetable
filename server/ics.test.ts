@@ -40,6 +40,33 @@ describe("generateCalendar", () => {
     expect(dateCalendar).toContain("RRULE:FREQ=DAILY;INTERVAL=7;UNTIL=20260803T010000Z\r\n");
   });
 
+  it("emits time overrides as recurrence exceptions", () => {
+    const calendar = generateCalendar([
+      {
+        ...baseRule,
+        repeat: {
+          intervalDays: 7,
+          endType: "count",
+          endCount: 3,
+          timeOverrides: {
+            "2026-07-27": { startTime: "13:00", endTime: "15:00" },
+          },
+        },
+      },
+    ]);
+
+    expect(calendar.match(/UID:rule-1@nono-timetable/g)).toHaveLength(2);
+    expect(calendar).toContain(
+      "RECURRENCE-ID;TZID=Asia/Shanghai:20260727T090000\r\n",
+    );
+    expect(calendar).toContain(
+      "DTSTART;TZID=Asia/Shanghai:20260727T130000\r\n",
+    );
+    expect(calendar).toContain(
+      "DTEND;TZID=Asia/Shanghai:20260727T150000\r\n",
+    );
+  });
+
   it("folds long UTF-8 lines to at most 75 bytes", () => {
     const calendar = generateCalendar([{ ...baseRule, notes: "课程备注".repeat(30) }]);
     for (const line of calendar.split("\r\n")) {

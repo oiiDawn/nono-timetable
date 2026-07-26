@@ -1,10 +1,16 @@
 export type RepeatEndType = "count" | "date";
 
+export interface LessonTimeOverride {
+  startTime: string;
+  endTime: string;
+}
+
 export interface RepeatRule {
   intervalDays: number;
   endType: RepeatEndType;
   endCount?: number;
   endDate?: string;
+  timeOverrides?: Record<string, LessonTimeOverride>;
 }
 
 export interface LessonRule {
@@ -28,6 +34,7 @@ export interface LessonInstance {
   endTime: string;
   notes: string;
   isRecurring: boolean;
+  isTimeOverride: boolean;
 }
 
 export interface LessonFormValues {

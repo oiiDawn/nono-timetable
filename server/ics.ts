@@ -57,6 +57,34 @@ function recurrence(rule: LessonRule): string | undefined {
   return `RRULE:${parts.join(";")}`;
 }
 
+function appendEvent(
+  lines: string[],
+  rule: LessonRule,
+  date: string,
+  startTime: string,
+  endTime: string,
+  recurrenceId?: string,
+): void {
+  lines.push(
+    "BEGIN:VEVENT",
+    `UID:${escapeText(rule.id)}@nono-timetable`,
+    `DTSTAMP:${utcDateTime(rule.updatedAt)}`,
+    `LAST-MODIFIED:${utcDateTime(rule.updatedAt)}`,
+    `SEQUENCE:${rule.version}`,
+  );
+  if (recurrenceId) {
+    lines.push(
+      `RECURRENCE-ID;TZID=Asia/Shanghai:${localDateTime(recurrenceId, rule.startTime)}`,
+    );
+  }
+  lines.push(
+    `DTSTART;TZID=Asia/Shanghai:${localDateTime(date, startTime)}`,
+    `DTEND;TZID=Asia/Shanghai:${localDateTime(date, endTime)}`,
+    `SUMMARY:${escapeText(rule.title)}`,
+    `DESCRIPTION:${escapeText(rule.notes)}`,
+  );
+}
+
 export function generateCalendar(rules: LessonRule[]): string {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -79,20 +107,24 @@ export function generateCalendar(rules: LessonRule[]): string {
   ];
 
   for (const rule of rules) {
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:${escapeText(rule.id)}@nono-timetable`,
-      `DTSTAMP:${utcDateTime(rule.updatedAt)}`,
-      `LAST-MODIFIED:${utcDateTime(rule.updatedAt)}`,
-      `SEQUENCE:${rule.version}`,
-      `DTSTART;TZID=Asia/Shanghai:${localDateTime(rule.startDate, rule.startTime)}`,
-      `DTEND;TZID=Asia/Shanghai:${localDateTime(rule.startDate, rule.endTime)}`,
-      `SUMMARY:${escapeText(rule.title)}`,
-      `DESCRIPTION:${escapeText(rule.notes)}`,
-    );
+    appendEvent(lines, rule, rule.startDate, rule.startTime, rule.endTime);
     const rrule = recurrence(rule);
     if (rrule) lines.push(rrule);
     lines.push("STATUS:CONFIRMED", "END:VEVENT");
+
+    for (const [date, override] of Object.entries(
+      rule.repeat?.timeOverrides ?? {},
+    )) {
+      appendEvent(
+        lines,
+        rule,
+        date,
+        override.startTime,
+        override.endTime,
+        date,
+      );
+      lines.push("STATUS:CONFIRMED", "END:VEVENT");
+    }
   }
 
   lines.push("END:VCALENDAR");

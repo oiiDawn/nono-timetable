@@ -33,4 +33,27 @@ describe("parseLessonRule", () => {
       }),
     ).toThrow(RequestError);
   });
+
+  it("accepts valid time overrides and rejects dates outside the recurrence", () => {
+    const repeat = {
+      intervalDays: 7,
+      endType: "count",
+      endCount: 3,
+      timeOverrides: {
+        "2026-07-27": { startTime: "13:00", endTime: "15:00" },
+      },
+    };
+    expect(parseLessonRule({ ...validRule, repeat }).repeat).toEqual(repeat);
+    expect(() =>
+      parseLessonRule({
+        ...validRule,
+        repeat: {
+          ...repeat,
+          timeOverrides: {
+            "2026-07-28": { startTime: "13:00", endTime: "15:00" },
+          },
+        },
+      }),
+    ).toThrow("临时调课日期不属于循环课程");
+  });
 });

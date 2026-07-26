@@ -1,6 +1,6 @@
 import { format, isSameDay } from "date-fns";
+import { ClockArrowUp, Repeat2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { LessonInstance } from "@/types/lesson";
 import {
@@ -259,12 +259,17 @@ export function WeekView({
                               </p>
                             ) : null}
                             {instance.isRecurring ? (
-                              <Badge
-                                variant="secondary"
-                                className="mt-1 h-4 px-1 text-[10px]"
+                              <span
+                                className="mt-1 inline-flex text-muted-foreground"
+                                title={instance.isTimeOverride ? "临时调课" : "循环课程"}
+                                aria-label={instance.isTimeOverride ? "临时调课" : "循环课程"}
                               >
-                                循环
-                              </Badge>
+                                {instance.isTimeOverride ? (
+                                  <ClockArrowUp className="size-3" />
+                                ) : (
+                                  <Repeat2 className="size-3" />
+                                )}
+                              </span>
                             ) : null}
                           </button>
                         );

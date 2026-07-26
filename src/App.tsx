@@ -4,6 +4,12 @@ import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { WeekView } from "@/components/WeekView";
 import {
@@ -19,6 +25,7 @@ import {
 } from "@/lib/api";
 import {
   expandRulesForRange,
+  findConflicts,
   findConflictsForRule,
   formValuesToRule,
   formatDate,
@@ -29,7 +36,9 @@ import {
   getWeekStart,
   loadStoredViewMode,
   parseDate,
+  reconcileTimeOverrides,
   ruleToFormValues,
+  setTimeOverride,
   shiftMonthStart,
   storeViewMode,
   validateFormValues,
@@ -42,7 +51,7 @@ import type {
   LessonRule,
 } from "@/types/lesson";
 
-type FormMode = "create" | "edit";
+type FormMode = "create" | "editRule" | "editOccurrence";
 
 function createDefaultFormValues(date?: string): LessonFormValues {
   return {
@@ -74,6 +83,10 @@ export default function App() {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingOccurrenceDate, setEditingOccurrenceDate] = useState<string | null>(
+    null,
+  );
+  const [scopeInstance, setScopeInstance] = useState<LessonInstance | null>(null);
   const [formValues, setFormValues] = useState<LessonFormValues>(() =>
     createDefaultFormValues(),
   );
@@ -94,6 +107,7 @@ export default function App() {
 
   const calendarTitle =
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
+  const editingRule = rules.find((rule) => rule.id === editingRuleId);
 
   const handleApiError = async (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -137,6 +151,7 @@ export default function App() {
   const openCreateForm = (date: string, startTime = "09:00", endTime = "11:00") => {
     setFormMode("create");
     setEditingRuleId(null);
+    setEditingOccurrenceDate(null);
     setFormValues({
       ...createDefaultFormValues(date),
       startTime,
@@ -146,17 +161,44 @@ export default function App() {
     setFormOpen(true);
   };
 
-  const openEditForm = (instance: LessonInstance) => {
+  const openRuleEditForm = (instance: LessonInstance) => {
     const rule = rules.find((item) => item.id === instance.ruleId);
-    if (!rule) {
-      return;
-    }
+    if (!rule) return;
 
-    setFormMode("edit");
+    setScopeInstance(null);
+    setFormMode("editRule");
     setEditingRuleId(rule.id);
+    setEditingOccurrenceDate(null);
     setFormValues(ruleToFormValues(rule));
     setPendingConflicts([]);
     setFormOpen(true);
+  };
+
+  const openOccurrenceEditForm = (instance: LessonInstance) => {
+    const rule = rules.find((item) => item.id === instance.ruleId);
+    if (!rule?.repeat) return;
+
+    setScopeInstance(null);
+    setFormMode("editOccurrence");
+    setEditingRuleId(rule.id);
+    setEditingOccurrenceDate(instance.date);
+    setFormValues({
+      ...ruleToFormValues(rule),
+      startDate: instance.date,
+      startTime: instance.startTime,
+      endTime: instance.endTime,
+      isRepeating: false,
+    });
+    setPendingConflicts([]);
+    setFormOpen(true);
+  };
+
+  const openEditForm = (instance: LessonInstance) => {
+    if (instance.isRecurring) {
+      setScopeInstance(instance);
+      return;
+    }
+    openRuleEditForm(instance);
   };
 
   const handleDelete = async () => {
@@ -164,8 +206,10 @@ export default function App() {
       return;
     }
 
+    const rule = rules.find((item) => item.id === editingRuleId);
+    if (!rule) return;
     const confirmed = window.confirm(
-      formValues.isRepeating
+      rule.repeat
         ? "将删除整个循环课程系列，确定继续吗？"
         : "确定删除这节课吗？",
     );
@@ -173,8 +217,6 @@ export default function App() {
       return;
     }
 
-    const rule = rules.find((item) => item.id === editingRuleId);
-    if (!rule) return;
     try {
       await removeLesson(rule);
       setRules((current) => current.filter((item) => item.id !== rule.id));
@@ -197,7 +239,44 @@ export default function App() {
       const existing = editingRuleId
         ? rules.find((rule) => rule.id === editingRuleId)
         : undefined;
-      const nextRule = formValuesToRule(values, existing);
+      if (formMode === "editOccurrence") {
+        if (!existing?.repeat || !editingOccurrenceDate) return;
+        const nextRule = setTimeOverride(
+          existing,
+          editingOccurrenceDate,
+          values.startTime,
+          values.endTime,
+        );
+        const occurrenceDate = parseDate(editingOccurrenceDate);
+        const candidate = expandRulesForRange(
+          [nextRule],
+          occurrenceDate,
+          occurrenceDate,
+        )[0];
+        const conflict = candidate
+          ? findConflicts(
+              candidate,
+              expandRulesForRange(rules, occurrenceDate, occurrenceDate),
+            )
+          : null;
+        if (conflict && pendingConflicts.length === 0) {
+          setPendingConflicts([conflict]);
+          return;
+        }
+        const savedRule = await updateLesson(nextRule);
+        setRules((current) =>
+          current.map((rule) => (rule.id === savedRule.id ? savedRule : rule)),
+        );
+        setPendingConflicts([]);
+        setFormOpen(false);
+        setSelectedDate(editingOccurrenceDate);
+        return;
+      }
+
+      let nextRule = formValuesToRule(values, existing);
+      const previousOverrides = existing?.repeat?.timeOverrides ?? {};
+      const reconciled = reconcileTimeOverrides(nextRule, previousOverrides);
+      nextRule = reconciled.rule;
       const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
 
       const conflictRangeStart = getWeekStart(parseDate(nextRule.startDate));
@@ -211,6 +290,14 @@ export default function App() {
 
       if (conflicts.length > 0 && pendingConflicts.length === 0) {
         setPendingConflicts(conflicts);
+        return;
+      }
+      if (
+        reconciled.invalidDates.length > 0 &&
+        !window.confirm(
+          `修改循环规则将移除 ${reconciled.invalidDates.length} 条已失效的临时调课，确定继续吗？`,
+        )
+      ) {
         return;
       }
 
@@ -378,12 +465,58 @@ export default function App() {
         </section>
       </main>
 
+      <Dialog
+        open={Boolean(scopeInstance)}
+        onOpenChange={(open) => {
+          if (!open) setScopeInstance(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑循环课程</DialogTitle>
+          </DialogHeader>
+          {scopeInstance ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {scopeInstance.title} · {scopeInstance.date}{" "}
+                {scopeInstance.startTime}–{scopeInstance.endTime}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button onClick={() => openOccurrenceEditForm(scopeInstance)}>
+                  仅这一节
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => openRuleEditForm(scopeInstance)}
+                >
+                  整个循环
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <LessonForm
         open={formOpen}
-        title={formMode === "create" ? "新增课程" : "编辑课程系列"}
+        title={
+          formMode === "create"
+            ? "新增课程"
+            : formMode === "editOccurrence"
+              ? "调整本节时间"
+              : "编辑课程系列"
+        }
         initialValues={formValues}
         conflicts={pendingConflicts}
-        onDelete={formMode === "edit" ? handleDelete : undefined}
+        timeOnly={
+          formMode === "editOccurrence" && editingRule
+            ? {
+                originalStartTime: editingRule.startTime,
+                originalEndTime: editingRule.endTime,
+              }
+            : undefined
+        }
+        onDelete={formMode === "editRule" ? handleDelete : undefined}
         onOpenChange={(open) => {
           setFormOpen(open);
           if (!open) {

@@ -22,6 +22,10 @@ interface LessonFormProps {
   title: string;
   initialValues: LessonFormValues;
   conflicts: ConflictInfo[];
+  timeOnly?: {
+    originalStartTime: string;
+    originalEndTime: string;
+  };
   onDelete?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: LessonFormValues) => void;
@@ -38,6 +42,7 @@ export function LessonForm({
   title,
   initialValues,
   conflicts,
+  timeOnly,
   onDelete,
   onOpenChange,
   onSubmit,
@@ -82,28 +87,40 @@ export function LessonForm({
             onSubmit(values);
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="title">名称</Label>
-            <Input
-              id="title"
-              value={values.title}
-              onChange={(event) => update("title", event.target.value)}
-              placeholder="小九、佑佑..."
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
+          {timeOnly ? (
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{values.title}</p>
+              <p className="mt-1 text-muted-foreground">
+                {values.startDate} · 原时间 {timeOnly.originalStartTime}–
+                {timeOnly.originalEndTime}
+              </p>
+            </div>
+          ) : (
             <div className="space-y-2">
-              <Label htmlFor="startDate">开始日期</Label>
+              <Label htmlFor="title">名称</Label>
               <Input
-                id="startDate"
-                type="date"
-                value={values.startDate}
-                onChange={(event) => update("startDate", event.target.value)}
+                id="title"
+                value={values.title}
+                onChange={(event) => update("title", event.target.value)}
+                placeholder="小九、佑佑..."
                 required
               />
             </div>
+          )}
+
+          <div className={cn("grid gap-4", timeOnly ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+            {!timeOnly ? (
+              <div className="space-y-2">
+                <Label htmlFor="startDate">开始日期</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={values.startDate}
+                  onChange={(event) => update("startDate", event.target.value)}
+                  required
+                />
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="startTime">开始时间</Label>
               <select
@@ -148,26 +165,30 @@ export function LessonForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">备注</Label>
-            <Textarea
-              id="notes"
-              value={values.notes}
-              onChange={(event) => update("notes", event.target.value)}
-              placeholder="可选"
-            />
-          </div>
+          {!timeOnly ? (
+            <div className="space-y-2">
+              <Label htmlFor="notes">备注</Label>
+              <Textarea
+                id="notes"
+                value={values.notes}
+                onChange={(event) => update("notes", event.target.value)}
+                placeholder="可选"
+              />
+            </div>
+          ) : null}
 
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={values.isRepeating}
-              onChange={(event) => update("isRepeating", event.target.checked)}
-            />
-            按周期重复
-          </label>
+          {!timeOnly ? (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={values.isRepeating}
+                onChange={(event) => update("isRepeating", event.target.checked)}
+              />
+              按周期重复
+            </label>
+          ) : null}
 
-          {values.isRepeating ? (
+          {!timeOnly && values.isRepeating ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span>每</span>
@@ -269,7 +290,25 @@ export function LessonForm({
           ) : null}
 
           <div className="flex items-center justify-between gap-2">
-            {onDelete ? (
+            {timeOnly ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  values.startTime === timeOnly.originalStartTime &&
+                  values.endTime === timeOnly.originalEndTime
+                }
+                onClick={() =>
+                  setValues((current) => ({
+                    ...current,
+                    startTime: timeOnly.originalStartTime,
+                    endTime: timeOnly.originalEndTime,
+                  }))
+                }
+              >
+                恢复原时间
+              </Button>
+            ) : onDelete ? (
               <Button type="button" variant="destructive" onClick={onDelete}>
                 删除
               </Button>
