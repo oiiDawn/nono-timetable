@@ -7,6 +7,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="独立老师多端排课应用" />
     <title>排课表</title>
+    <script>
+      // Set light/dark before first paint; src/lib/theme.ts owns the same logic after boot.
+      (function () {
+        try {
+          var stored = localStorage.getItem("nono-timetable-theme");
+          var dark = stored
+            ? stored === "dark"
+            : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var root = document.documentElement;
+          root.classList.add(dark ? "dark" : "light");
+          root.setAttribute("data-theme", dark ? "dark" : "light");
+          root.style.colorScheme = dark ? "dark" : "light";
+        } catch (error) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

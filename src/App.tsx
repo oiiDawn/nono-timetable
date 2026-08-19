@@ -1,6 +1,16 @@
 /** Timetable shell: calendar views, lesson editor, and recurrence save/delete scope. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Card,
+  FieldError,
+  Form,
+  Input,
+  Label,
+  Spinner,
+  TextField,
+  Button as HeroButton,
+} from "@heroui/react";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
@@ -11,7 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { WeekView } from "@/components/WeekView";
 import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
 import {
@@ -453,7 +462,14 @@ export default function App() {
   };
 
   if (authenticated === null) {
-    return <div className="grid h-dvh place-items-center text-sm text-muted-foreground">正在检查登录状态…</div>;
+    return (
+      <div className="grid h-dvh place-items-center">
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Spinner color="current" size="sm" />
+          正在检查登录状态…
+        </div>
+      </div>
+    );
   }
 
   if (!authenticated) {
@@ -461,8 +477,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-muted/30">
-      <header className="shrink-0 border-b bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b bg-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div className="flex items-center gap-3">
             <img
@@ -632,22 +648,9 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-muted/30 px-4">
-      <form
-        className="w-full max-w-sm space-y-5 rounded-xl border bg-background p-6 shadow-sm"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setSubmitting(true);
-          setError(null);
-          void login(password)
-            .then(onAuthenticated)
-            .catch((reason: unknown) =>
-              setError(reason instanceof Error ? reason.message : "登录失败"),
-            )
-            .finally(() => setSubmitting(false));
-        }}
-      >
-        <div className="flex items-center gap-4">
+    <main className="grid min-h-dvh place-items-center bg-background px-4">
+      <Card className="w-full max-w-sm">
+        <Card.Header className="flex-row items-center gap-4">
           <img
             src="/app-icon-96.png"
             alt=""
@@ -655,25 +658,58 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             width="64"
             height="64"
           />
-          <div>
-            <h1 className="text-2xl font-bold">排课表</h1>
-            <p className="mt-1 text-sm text-muted-foreground">请输入个人密码继续。</p>
+          <div className="flex flex-col gap-1">
+            <Card.Title className="text-2xl">排课表</Card.Title>
+            <Card.Description>请输入个人密码继续。</Card.Description>
           </div>
-        </div>
-        <Input
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="个人密码"
-          required
-          autoFocus
-        />
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button className="w-full" type="submit" disabled={submitting}>
-          {submitting ? "正在登录…" : "登录"}
-        </Button>
-      </form>
+        </Card.Header>
+        <Form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSubmitting(true);
+            setError(null);
+            void login(password)
+              .then(onAuthenticated)
+              .catch((reason: unknown) =>
+                setError(reason instanceof Error ? reason.message : "登录失败"),
+              )
+              .finally(() => setSubmitting(false));
+          }}
+        >
+          <Card.Content>
+            <TextField
+              isRequired
+              isInvalid={Boolean(error)}
+              name="password"
+              type="password"
+              value={password}
+              onChange={(value) => {
+                setPassword(value);
+                setError(null);
+              }}
+            >
+              <Label className="sr-only">个人密码</Label>
+              <Input
+                autoComplete="current-password"
+                placeholder="个人密码"
+                autoFocus
+                fullWidth
+              />
+              <FieldError>{error}</FieldError>
+            </TextField>
+          </Card.Content>
+          <Card.Footer>
+            <HeroButton type="submit" fullWidth isPending={submitting}>
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : null}
+                  {isPending ? "正在登录…" : "登录"}
+                </>
+              )}
+            </HeroButton>
+          </Card.Footer>
+        </Form>
+      </Card>
     </main>
   );
 }

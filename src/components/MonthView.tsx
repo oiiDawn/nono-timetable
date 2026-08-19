@@ -34,7 +34,7 @@ export function MonthView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-      <div className="grid shrink-0 grid-cols-7 border-b bg-muted/30">
+      <div className="grid shrink-0 grid-cols-7 border-b bg-background-secondary">
         {WEEKDAY_HEADERS.map((label) => (
           <div
             key={label}
@@ -59,7 +59,7 @@ export function MonthView({
               className={cn(
                 "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
                 selected && "bg-primary/10",
-                overflow && "bg-muted/20",
+                overflow && "bg-background-secondary",
               )}
             >
               <div className="px-2 pt-1">
@@ -71,7 +71,7 @@ export function MonthView({
                       ? "bg-primary text-primary-foreground"
                       : overflow
                         ? "text-muted-foreground"
-                        : "text-foreground hover:bg-muted",
+                        : "text-foreground hover:bg-default",
                   )}
                   onClick={() => onSelectDate(dateKey)}
                 >
