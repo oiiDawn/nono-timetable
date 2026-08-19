@@ -1,8 +1,7 @@
 /** Month/week switcher and period navigation. */
 
-import { IconChevronLeft, IconChevronRight } from "@/components/icons";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarViewMode } from "@/lib/schedule";
 
 interface CalendarToolbarProps {
@@ -21,32 +20,30 @@ export function CalendarToolbar({
   onNext,
 }: CalendarToolbarProps) {
   return (
-    <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-      <div className="inline-flex rounded-md border p-0.5">
-        {(["month", "week"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className={cn(
-              "rounded px-3 py-1.5 text-sm font-medium transition-colors",
-              viewMode === mode
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => onViewModeChange(mode)}
-          >
-            {mode === "month" ? "月" : "周"}
-          </button>
-        ))}
-      </div>
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <ToggleButtonGroup
+        disallowEmptySelection
+        aria-label="视图切换"
+        selectionMode="single"
+        selectedKeys={[viewMode]}
+        onSelectionChange={(keys) => {
+          const mode = [...keys][0] as CalendarViewMode | undefined;
+          if (mode) onViewModeChange(mode);
+        }}
+      >
+        <ToggleButton id="month">月</ToggleButton>
+        <ToggleButton id="week">
+          <ToggleButtonGroup.Separator />周
+        </ToggleButton>
+      </ToggleButtonGroup>
 
-      <div className="flex min-w-0 items-center justify-center gap-2">
-        <Button variant="outline" size="icon" aria-label="上一页" onClick={onPrevious}>
-          <IconChevronLeft className="h-4 w-4" />
+      <div className="flex min-w-0 items-center gap-1">
+        <Button isIconOnly variant="ghost" aria-label="上一页" onPress={onPrevious}>
+          <ChevronLeft className="size-5" />
         </Button>
-        <h2 className="truncate text-center text-lg font-semibold">{title}</h2>
-        <Button variant="outline" size="icon" aria-label="下一页" onClick={onNext}>
-          <IconChevronRight className="h-4 w-4" />
+        <h2 className="min-w-32 truncate text-center text-lg font-semibold">{title}</h2>
+        <Button isIconOnly variant="ghost" aria-label="下一页" onPress={onNext}>
+          <ChevronRight className="size-5" />
         </Button>
       </div>
     </div>

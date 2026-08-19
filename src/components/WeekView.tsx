@@ -97,8 +97,8 @@ export function WeekView({
     100;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-      <div className="flex shrink-0 border-b bg-card">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
+      <div className="flex shrink-0 border-b bg-surface">
         <div className="w-14 shrink-0 border-r" />
         <div className="grid min-w-0 flex-1 grid-cols-7">
           {weekDays.map((day) => {
@@ -111,8 +111,8 @@ export function WeekView({
                 key={dateKey}
                 className={cn(
                   "border-r px-2 py-2 text-center last:border-r-0",
-                  today && "bg-primary/5",
-                  selected && "bg-primary/10",
+                  today && "bg-accent/5",
+                  selected && "bg-accent/10",
                 )}
               >
                 <button
@@ -123,7 +123,7 @@ export function WeekView({
                   <p
                     className={cn(
                       "text-sm font-semibold",
-                      today ? "text-primary" : "text-foreground",
+                      today ? "text-accent" : "text-foreground",
                     )}
                   >
                     {weekdayLabel(day)}
@@ -131,7 +131,7 @@ export function WeekView({
                   <p
                     className={cn(
                       "text-xs",
-                      today ? "text-primary/80" : "text-muted-foreground",
+                      today ? "text-accent/80" : "text-muted",
                     )}
                   >
                     {day.getMonth() + 1}月{day.getDate()}日
@@ -149,20 +149,20 @@ export function WeekView({
       >
         <div className="flex">
           <div
-            className="relative w-14 shrink-0 border-r bg-card"
+            className="relative w-14 shrink-0 border-r bg-surface"
             style={{ height: SCHEDULE_BODY_HEIGHT_PX }}
           >
             {HOUR_LABELS.slice(0, -1).map((label, index) => (
               <div
                 key={label}
-                className="absolute right-2 -translate-y-1/2 text-xs text-muted-foreground"
+                className="absolute right-2 -translate-y-1/2 text-xs text-muted"
                 style={{ top: index * SCHEDULE_HOUR_HEIGHT_PX }}
               >
                 {label}
               </div>
             ))}
             <div
-              className="absolute right-2 -translate-y-1/2 text-xs text-muted-foreground"
+              className="absolute right-2 -translate-y-1/2 text-xs text-muted"
               style={{ top: SCHEDULE_BODY_HEIGHT_PX }}
             >
               {HOUR_LABELS[HOUR_LABELS.length - 1]}
@@ -182,8 +182,8 @@ export function WeekView({
                   key={dateKey}
                   className={cn(
                     "relative cursor-pointer border-r last:border-r-0",
-                    today && "bg-primary/[0.03]",
-                    selected && "bg-primary/[0.06]",
+                    today && "bg-accent/[0.04]",
+                    selected && "bg-accent/[0.08]",
                   )}
                   style={{ height: SCHEDULE_BODY_HEIGHT_PX }}
                   onClick={(event) => {
@@ -214,8 +214,8 @@ export function WeekView({
                       className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
                       style={{ top: `${nowTopPercent}%` }}
                     >
-                      <div className="h-2 w-2 rounded-full bg-destructive" />
-                      <div className="h-0.5 flex-1 bg-destructive" />
+                      <div className="h-2 w-2 rounded-full bg-danger" />
+                      <div className="h-0.5 flex-1 bg-danger" />
                     </div>
                   ) : null}
 
@@ -239,7 +239,7 @@ export function WeekView({
                         key={`${instance.ruleId}-${instance.originalDate}`}
                         type="button"
                         data-lesson-block
-                        className="absolute z-10 overflow-hidden rounded-md border border-primary/20 bg-primary/15 px-1.5 py-1 text-left text-xs transition hover:bg-primary/25"
+                        className="absolute z-10 overflow-hidden rounded-md border border-accent/25 bg-accent-soft px-1.5 py-1 text-left text-xs transition hover:bg-accent-soft-hover"
                         style={{
                           top: `${top}%`,
                           height: `${height}%`,
@@ -256,13 +256,13 @@ export function WeekView({
                           {instance.title}
                         </p>
                         {showTime ? (
-                          <p className="truncate text-[10px] text-muted-foreground">
+                          <p className="truncate text-[10px] text-muted">
                             {instance.startTime} - {instance.endTime}
                           </p>
                         ) : null}
                         <RecurringMark
                           instance={instance}
-                          className="mt-1 inline-flex text-muted-foreground"
+                          className="mt-1 inline-flex text-muted"
                         />
                       </button>
                     );

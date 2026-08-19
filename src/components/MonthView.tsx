@@ -33,12 +33,12 @@ export function MonthView({
   const grouped = groupInstancesByDate(instances);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
       <div className="grid shrink-0 grid-cols-7 border-b bg-background-secondary">
         {WEEKDAY_HEADERS.map((label) => (
           <div
             key={label}
-            className="border-r px-2 py-2 text-center text-xs font-medium text-muted-foreground last:border-r-0"
+            className="border-r px-2 py-2 text-center text-xs font-medium text-muted last:border-r-0"
           >
             {label}
           </div>
@@ -58,7 +58,7 @@ export function MonthView({
               key={dateKey}
               className={cn(
                 "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
-                selected && "bg-primary/10",
+                selected && "bg-accent/10",
                 overflow && "bg-background-secondary",
               )}
             >
@@ -68,9 +68,9 @@ export function MonthView({
                   className={cn(
                     "inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium",
                     today
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-accent text-accent-foreground"
                       : overflow
-                        ? "text-muted-foreground"
+                        ? "text-muted"
                         : "text-foreground hover:bg-default",
                   )}
                   onClick={() => onSelectDate(dateKey)}
@@ -90,7 +90,7 @@ export function MonthView({
                   <button
                     key={`${instance.ruleId}-${instance.originalDate}`}
                     type="button"
-                    className="truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight border border-primary/20 bg-primary/15 hover:bg-primary/25"
+                    className="truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight border border-accent/25 bg-accent-soft hover:bg-accent-soft-hover"
                     onClick={(event) => {
                       event.stopPropagation();
                       onSelectDate(dateKey);
@@ -98,12 +98,12 @@ export function MonthView({
                     }}
                   >
                     <span className="font-medium">{instance.title}</span>
-                    <span className="ml-1 text-[10px] text-muted-foreground">
+                    <span className="ml-1 text-[10px] text-muted">
                       {instance.startTime}
                     </span>
                     <RecurringMark
                       instance={instance}
-                      className="ml-1 inline-flex align-middle text-muted-foreground"
+                      className="ml-1 inline-flex align-middle text-muted"
                     />
                   </button>
                 ))}
