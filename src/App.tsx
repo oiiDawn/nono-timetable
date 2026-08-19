@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   FieldError,
@@ -530,16 +531,21 @@ export default function App() {
           />
 
           {loadError ? (
-            <div className="rounded-lg border border-danger/40 bg-danger-soft p-4 text-sm">
-              <p>{loadError}</p>
-              <Button
-                className="mt-3"
-                variant="secondary"
-                onPress={() => void loadCloudLessons()}
-              >
-                重新加载
-              </Button>
-            </div>
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>{loadError}</Alert.Title>
+                <Alert.Description>
+                  <Button
+                    className="mt-2"
+                    variant="secondary"
+                    onPress={() => void loadCloudLessons()}
+                  >
+                    重新加载
+                  </Button>
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           ) : null}
 
           {isMobile ? (
@@ -723,19 +729,18 @@ function ScopeDialog({
             <Modal.Body>
               <p className="text-sm text-muted">{description}</p>
             </Modal.Body>
-            <Modal.Footer className="flex-col items-stretch">
+            <Modal.Footer>
               <Button
-                fullWidth
                 isDisabled={thisDisabled}
                 variant={thisVariant}
                 onPress={onThis}
               >
                 仅此事件
               </Button>
-              <Button fullWidth variant="secondary" onPress={onFuture}>
+              <Button variant="secondary" onPress={onFuture}>
                 所有未来事件
               </Button>
-              <Button fullWidth variant="secondary" onPress={onAll}>
+              <Button variant="secondary" onPress={onAll}>
                 全部事件
               </Button>
             </Modal.Footer>
@@ -755,15 +760,9 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
     <main className="grid min-h-dvh place-items-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <Card.Header className="flex-row items-center gap-4">
-          <img
-            src="/app-icon-96.png"
-            alt=""
-            className="size-16 rounded-2xl shadow-sm"
-            width="64"
-            height="64"
-          />
+          <img src="/app-icon-96.png" alt="" width="64" height="64" />
           <div className="flex flex-col gap-1">
-            <Card.Title className="text-2xl">排课表</Card.Title>
+            <Card.Title>排课表</Card.Title>
             <Card.Description>请输入个人密码继续。</Card.Description>
           </div>
         </Card.Header>

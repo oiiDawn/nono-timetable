@@ -68,14 +68,8 @@ export function AppBar({
     <header className="shrink-0 border-b bg-surface">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <img
-            src="/app-icon-96.png"
-            alt=""
-            className="size-9 rounded-xl sm:size-10"
-            width="40"
-            height="40"
-          />
-          <h1 className="truncate text-lg font-bold sm:text-2xl">排课表</h1>
+          <img src="/app-icon-96.png" alt="" width="40" height="40" />
+          <h1 className="truncate text-lg font-semibold">排课表</h1>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <IconAction label="复制订阅地址" onPress={onCopySubscription}>

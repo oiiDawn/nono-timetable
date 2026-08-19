@@ -190,7 +190,7 @@ export function LessonForm({
           scroll="inside"
           size={isMobile ? "full" : "md"}
         >
-          <Modal.Dialog className="sm:max-w-lg">
+          <Modal.Dialog>
             <Modal.CloseTrigger />
             <Form
               className="flex min-h-0 flex-1 flex-col"
@@ -305,7 +305,7 @@ export function LessonForm({
                         value={String(values.interval)}
                         onChange={(value) => update("interval", Number(value) || 1)}
                       >
-                        <Input className="text-center" min={1} />
+                        <Input min={1} />
                       </TextField>
                       <ToggleButtonGroup
                         disallowEmptySelection
@@ -386,7 +386,7 @@ export function LessonForm({
                               value={String(values.endCount)}
                               onChange={(value) => update("endCount", Number(value) || 1)}
                             >
-                              <Input className="text-center" min={1} />
+                              <Input min={1} />
                             </TextField>
                             次
                           </span>
