@@ -2,27 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Button,
   Card,
   FieldError,
   Form,
   Input,
   Label,
+  Modal,
   Spinner,
   TextField,
   toast,
-  Button as HeroButton,
 } from "@heroui/react";
 import { AppBar } from "@/components/AppBar";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { WeekView } from "@/components/WeekView";
 import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
 import {
@@ -62,9 +56,9 @@ import {
   ruleToFormValues,
   shiftMonthStart,
   storeViewMode,
-  validateFormValues,
   type CalendarViewMode,
 } from "@/lib/schedule";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { createId } from "@/lib/utils";
 import type {
   ConflictInfo,
@@ -124,6 +118,11 @@ export default function App() {
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
   const [pendingSave, setPendingSave] = useState<LessonFormValues | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [confirmRequest, setConfirmRequest] = useState<{
+    title: string;
+    description: string;
+    action: () => void;
+  } | null>(null);
 
   const weekEnd = addDays(weekStart, 6);
   const monthRange = getMonthGridRange(monthStart);
@@ -253,11 +252,8 @@ export default function App() {
     return true;
   };
 
-  const confirmInvalidExceptions = (invalidDates: string[]): boolean => {
-    if (invalidDates.length === 0) return true;
-    return window.confirm(
-      `修改循环规则将移除 ${invalidDates.length} 条已失效的单次调整，确定继续吗？`,
-    );
+  const requestConfirm = (title: string, description: string, action: () => void) => {
+    setConfirmRequest({ title, description, action });
   };
 
   const saveThisEvent = async (values: LessonFormValues, rule: LessonRule) => {
@@ -278,9 +274,19 @@ export default function App() {
     const { rule: nextRule, invalidDates } = rule.repeat
       ? applyAllEventsEdit(rule, drafted, originalDate)
       : { rule: drafted, invalidDates: [] };
-    if (!confirmInvalidExceptions(invalidDates)) return;
-    if (!checkConflicts(nextRule)) return;
-    await persistRule(nextRule, rule);
+    const proceed = async () => {
+      if (!checkConflicts(nextRule)) return;
+      await persistRule(nextRule, rule);
+    };
+    if (invalidDates.length > 0) {
+      requestConfirm(
+        "移除失效调整",
+        `修改循环规则将移除 ${invalidDates.length} 条已失效的单次调整，确定继续吗？`,
+        () => void proceed(),
+      );
+      return;
+    }
+    await proceed();
   };
 
   const saveFutureEvents = async (values: LessonFormValues, rule: LessonRule) => {
@@ -309,11 +315,6 @@ export default function App() {
   };
 
   const handleSubmit = async (values: LessonFormValues) => {
-    const validationError = validateFormValues(values);
-    if (validationError) {
-      window.alert(validationError);
-      return;
-    }
     setFormValues(values);
 
     try {
@@ -365,11 +366,7 @@ export default function App() {
     setPendingDelete(true);
   };
 
-  const deleteEntireRule = async (rule: LessonRule) => {
-    const confirmed = window.confirm(
-      rule.repeat ? "将删除整个循环课程系列，确定继续吗？" : "确定删除这节课吗？",
-    );
-    if (!confirmed) return;
+  const performDeleteRule = async (rule: LessonRule) => {
     try {
       await removeLesson(rule);
       setRules((current) => current.filter((item) => item.id !== rule.id));
@@ -378,6 +375,14 @@ export default function App() {
       await handleApiError(error);
       if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
     }
+  };
+
+  const deleteEntireRule = (rule: LessonRule) => {
+    requestConfirm(
+      rule.repeat ? "删除循环课程" : "删除课程",
+      rule.repeat ? "将删除整个循环课程系列，确定继续吗？" : "确定删除这节课吗？",
+      () => void performDeleteRule(rule),
+    );
   };
 
   const handleDeleteScope = async (scope: RecurrenceScope) => {
@@ -506,9 +511,13 @@ export default function App() {
           />
 
           {loadError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+            <div className="rounded-lg border border-danger/40 bg-danger-soft p-4 text-sm">
               <p>{loadError}</p>
-              <Button className="mt-3" variant="outline" onClick={() => void loadCloudLessons()}>
+              <Button
+                className="mt-3"
+                variant="outline"
+                onPress={() => void loadCloudLessons()}
+              >
                 重新加载
               </Button>
             </div>
@@ -516,7 +525,12 @@ export default function App() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             {loading ? (
-              <div className="grid h-full place-items-center text-sm text-muted-foreground">正在加载云端课表…</div>
+              <div className="grid h-full place-items-center">
+                <div className="flex items-center gap-2 text-sm text-muted">
+                  <Spinner color="current" size="sm" />
+                  正在加载云端课表…
+                </div>
+              </div>
             ) : viewMode === "month" ? (
               <MonthView
                 monthStart={monthStart}
@@ -571,12 +585,47 @@ export default function App() {
         open={pendingDelete}
         title="删除循环课程"
         description="要删除哪些课次？"
-        thisVariant="destructive"
+        thisVariant="danger"
         onClose={() => setPendingDelete(false)}
         onThis={() => void handleDeleteScope("this")}
         onFuture={() => void handleDeleteScope("future")}
         onAll={() => void handleDeleteScope("all")}
       />
+
+      <Modal>
+        <Modal.Backdrop
+          isOpen={Boolean(confirmRequest)}
+          onOpenChange={(next) => {
+            if (!next) setConfirmRequest(null);
+          }}
+        >
+          <Modal.Container placement="center" size="sm">
+            <Modal.Dialog>
+              <Modal.Header>
+                <Modal.Heading>{confirmRequest?.title}</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body>
+                <p className="text-sm text-muted">{confirmRequest?.description}</p>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="tertiary" onPress={() => setConfirmRequest(null)}>
+                  取消
+                </Button>
+                <Button
+                  variant="danger"
+                  onPress={() => {
+                    const request = confirmRequest;
+                    setConfirmRequest(null);
+                    request?.action();
+                  }}
+                >
+                  确定
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
     </div>
   );
 }
@@ -586,7 +635,7 @@ function ScopeDialog({
   title,
   description,
   thisDisabled,
-  thisVariant = "default",
+  thisVariant = "primary",
   onClose,
   onThis,
   onFuture,
@@ -596,32 +645,50 @@ function ScopeDialog({
   title: string;
   description: string;
   thisDisabled?: boolean;
-  thisVariant?: "default" | "destructive";
+  thisVariant?: "primary" | "danger";
   onClose: () => void;
   onThis: () => void;
   onFuture: () => void;
   onAll: () => void;
 }) {
+  const isMobile = useMediaQuery("(max-width: 639px)");
+
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{description}</p>
-        <div className="grid gap-2">
-          <Button disabled={thisDisabled} variant={thisVariant} onClick={onThis}>
-            仅此事件
-          </Button>
-          <Button variant="outline" onClick={onFuture}>
-            所有未来事件
-          </Button>
-          <Button variant="outline" onClick={onAll}>
-            全部事件
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Modal>
+      <Modal.Backdrop
+        isOpen={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+      >
+        <Modal.Container placement={isMobile ? "bottom" : "center"} size="sm">
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>{title}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              <p className="text-sm text-muted">{description}</p>
+            </Modal.Body>
+            <Modal.Footer className="flex-col items-stretch">
+              <Button
+                fullWidth
+                isDisabled={thisDisabled}
+                variant={thisVariant}
+                onPress={onThis}
+              >
+                仅此事件
+              </Button>
+              <Button fullWidth variant="secondary" onPress={onFuture}>
+                所有未来事件
+              </Button>
+              <Button fullWidth variant="secondary" onPress={onAll}>
+                全部事件
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 
@@ -682,14 +749,14 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             </TextField>
           </Card.Content>
           <Card.Footer>
-            <HeroButton type="submit" fullWidth isPending={submitting}>
+            <Button type="submit" fullWidth isPending={submitting}>
               {({ isPending }) => (
                 <>
                   {isPending ? <Spinner color="current" size="sm" /> : null}
                   {isPending ? "正在登录…" : "登录"}
                 </>
               )}
-            </HeroButton>
+            </Button>
           </Card.Footer>
         </Form>
       </Card>
