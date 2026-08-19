@@ -34,7 +34,8 @@ describe("parseLessonRule", () => {
       parseLessonRule({
         ...validRule,
         repeat: {
-          intervalDays: 1,
+          freq: "daily",
+          interval: 1,
           endType: "date",
           endDate: "2026-07-19",
         } as never,
@@ -44,11 +45,16 @@ describe("parseLessonRule", () => {
 
   it("accepts valid time overrides and rejects dates outside the recurrence", () => {
     const repeat = {
-      intervalDays: 7,
-      endType: "count",
+      freq: "daily" as const,
+      interval: 7,
+      endType: "count" as const,
       endCount: 3,
-      timeOverrides: {
-        "2026-07-27": { startTime: "13:00", endTime: "15:00" },
+      exceptions: {
+        "2026-07-27": {
+          date: "2026-07-27",
+          startTime: "13:00",
+          endTime: "15:00",
+        },
       },
     };
     expect(parseLessonRule({ ...validRule, repeat }).repeat).toEqual({
@@ -69,8 +75,12 @@ describe("parseLessonRule", () => {
         ...validRule,
         repeat: {
           ...repeat,
-          timeOverrides: {
-            "2026-07-28": { startTime: "13:00", endTime: "15:00" },
+          exceptions: {
+            "2026-07-28": {
+              date: "2026-07-28",
+              startTime: "13:00",
+              endTime: "15:00",
+            },
           },
         },
       }),

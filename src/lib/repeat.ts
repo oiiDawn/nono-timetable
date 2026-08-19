@@ -1,6 +1,6 @@
 /** Recurrence expansion, exceptions, truncation, and series splits. */
 
-import { addDays, startOfDay } from "date-fns";
+import { addDays, formatDate, getWeekStart, parseDate } from "./dates";
 import type {
   LessonFormValues,
   LessonRule,
@@ -33,12 +33,12 @@ export const WEEKDAY_LABELS: Record<Weekday, string> = {
   SU: "周日",
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function weekdayFromDate(date: string): Weekday {
-  return JS_DAY_TO_WEEKDAY[startOfDay(new Date(`${date}T00:00:00`)).getDay()]!;
+  return JS_DAY_TO_WEEKDAY[parseDate(date).getDay()]!;
 }
 
 export function uniqueWeekdays(days: Weekday[]): Weekday[] {
@@ -186,22 +186,9 @@ function isWithinRepeatBounds(
     return occurrenceIndex < (repeat.endCount ?? 1);
   }
   if (repeat.endType === "date" && repeat.endDate) {
-    return occurrenceDate <= startOfDay(new Date(`${repeat.endDate}T00:00:00`));
+    return occurrenceDate <= parseDate(repeat.endDate);
   }
   return true;
-}
-
-function mondayOf(date: Date): Date {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return startOfDay(addDays(date, diff));
-}
-
-function formatDateLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 export function listGeneratedOccurrenceDates(
@@ -212,7 +199,7 @@ export function listGeneratedOccurrenceDates(
   if (!normalized.repeat) return [normalized.startDate];
 
   const repeat = normalized.repeat;
-  const start = startOfDay(new Date(`${normalized.startDate}T00:00:00`));
+  const start = parseDate(normalized.startDate);
   const dates: string[] = [];
 
   if (repeat.freq === "daily") {
@@ -220,7 +207,7 @@ export function listGeneratedOccurrenceDates(
     while (index < limit) {
       const current = addDays(start, index * repeat.interval);
       if (!isWithinRepeatBounds(current, repeat, index)) break;
-      dates.push(formatDateLocal(current));
+      dates.push(formatDate(current));
       index += 1;
     }
     return dates;
@@ -229,7 +216,7 @@ export function listGeneratedOccurrenceDates(
   const weekdays = new Set(
     ensureStartWeekday(normalized.startDate, repeat.byWeekdays ?? []),
   );
-  const startWeekMonday = mondayOf(start);
+  const startWeekMonday = getWeekStart(start);
   let weekIndex = 0;
   let occurrenceIndex = 0;
 
@@ -242,7 +229,7 @@ export function listGeneratedOccurrenceDates(
         if (!isWithinRepeatBounds(current, repeat, occurrenceIndex)) {
           return dates;
         }
-        dates.push(formatDateLocal(current));
+        dates.push(formatDate(current));
         occurrenceIndex += 1;
         if (occurrenceIndex >= limit) return dates;
       }

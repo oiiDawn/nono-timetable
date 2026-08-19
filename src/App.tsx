@@ -1,7 +1,6 @@
 /** Timetable shell: calendar views, lesson editor, and recurrence save/delete scope. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { addDays } from "date-fns";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
@@ -14,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { WeekView } from "@/components/WeekView";
+import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
 import {
   ApiError,
   createLesson,
@@ -43,14 +43,11 @@ import {
   findConflicts,
   findConflictsForRule,
   formValuesToRule,
-  formatDate,
   formatMonthLabel,
   formatWeekLabel,
   getMonthGridRange,
-  getMonthStart,
   getWeekStart,
   loadStoredViewMode,
-  parseDate,
   ruleToFormValues,
   shiftMonthStart,
   storeViewMode,
@@ -98,7 +95,7 @@ export default function App() {
   const [rules, setRules] = useState<LessonRule[]>([]);
   const loadingRef = useRef(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => loadStoredViewMode());
-  const [monthStart, setMonthStart] = useState(() => getMonthStart(new Date()));
+  const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(() =>
     formatDate(new Date()),
@@ -131,8 +128,7 @@ export default function App() {
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
   const editingRule = rules.find((rule) => rule.id === editingRuleId);
   const originalDate = editingInstance?.originalDate ?? editingRule?.startDate ?? "";
-  const thisEventDisabled =
-    Boolean(pendingSave) && hasRepeatRuleChanged(initialFormValues, pendingSave);
+  const thisEventDisabled = pendingSave ? hasRepeatRuleChanged(initialFormValues, pendingSave) : false;
 
   const handleApiError = async (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -408,7 +404,7 @@ export default function App() {
       setWeekStart(getWeekStart(date));
       return;
     }
-    setMonthStart(getMonthStart(date));
+    setMonthStart(startOfMonth(date));
   };
 
   const handleViewModeChange = (mode: CalendarViewMode) => {
@@ -440,7 +436,7 @@ export default function App() {
     const todayKey = formatDate(today);
     setSelectedDate(todayKey);
     if (viewMode === "month") {
-      setMonthStart(getMonthStart(today));
+      setMonthStart(startOfMonth(today));
       return;
     }
     setWeekStart(getWeekStart(today));
@@ -561,46 +557,72 @@ export default function App() {
         onSubmit={(values) => void handleSubmit(values)}
       />
 
-      <Dialog open={Boolean(pendingSave)} onOpenChange={(open) => !open && setPendingSave(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>保存循环课程</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">这些更改要应用到哪些课次？</p>
-          <div className="grid gap-2">
-            <Button disabled={thisEventDisabled} onClick={() => void handleSaveScope("this")}>
-              仅此事件
-            </Button>
-            <Button variant="outline" onClick={() => void handleSaveScope("future")}>
-              所有未来事件
-            </Button>
-            <Button variant="outline" onClick={() => void handleSaveScope("all")}>
-              全部事件
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ScopeDialog
+        open={Boolean(pendingSave)}
+        title="保存循环课程"
+        description="这些更改要应用到哪些课次？"
+        thisDisabled={thisEventDisabled}
+        onClose={() => setPendingSave(null)}
+        onThis={() => void handleSaveScope("this")}
+        onFuture={() => void handleSaveScope("future")}
+        onAll={() => void handleSaveScope("all")}
+      />
 
-      <Dialog open={pendingDelete} onOpenChange={(open) => !open && setPendingDelete(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>删除循环课程</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">要删除哪些课次？</p>
-          <div className="grid gap-2">
-            <Button variant="destructive" onClick={() => void handleDeleteScope("this")}>
-              仅此事件
-            </Button>
-            <Button variant="outline" onClick={() => void handleDeleteScope("future")}>
-              所有未来事件
-            </Button>
-            <Button variant="outline" onClick={() => void handleDeleteScope("all")}>
-              全部事件
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ScopeDialog
+        open={pendingDelete}
+        title="删除循环课程"
+        description="要删除哪些课次？"
+        thisVariant="destructive"
+        onClose={() => setPendingDelete(false)}
+        onThis={() => void handleDeleteScope("this")}
+        onFuture={() => void handleDeleteScope("future")}
+        onAll={() => void handleDeleteScope("all")}
+      />
     </div>
+  );
+}
+
+function ScopeDialog({
+  open,
+  title,
+  description,
+  thisDisabled,
+  thisVariant = "default",
+  onClose,
+  onThis,
+  onFuture,
+  onAll,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  thisDisabled?: boolean;
+  thisVariant?: "default" | "destructive";
+  onClose: () => void;
+  onThis: () => void;
+  onFuture: () => void;
+  onAll: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="grid gap-2">
+          <Button disabled={thisDisabled} variant={thisVariant} onClick={onThis}>
+            仅此事件
+          </Button>
+          <Button variant="outline" onClick={onFuture}>
+            所有未来事件
+          </Button>
+          <Button variant="outline" onClick={onAll}>
+            全部事件
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

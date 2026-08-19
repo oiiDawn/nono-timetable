@@ -20,6 +20,8 @@ describe("generateCalendar", () => {
     const calendar = generateCalendar([baseRule]);
 
     expect(calendar).toContain("BEGIN:VCALENDAR\r\n");
+    expect(calendar).toContain("TZID:Asia/Shanghai\r\n");
+    expect(calendar).not.toContain("BEGIN:VTIMEZONE\r\nTZID=Asia/Shanghai");
     expect(calendar).toContain("UID:rule-1@nono-timetable\r\n");
     expect(calendar).toContain(
       "DTSTART;TZID=Asia/Shanghai:20260720T090000\r\n",

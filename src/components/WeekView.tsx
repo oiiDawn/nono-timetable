@@ -1,5 +1,7 @@
-import { format, isSameDay } from "date-fns";
-import { ClockArrowUp, Repeat2 } from "lucide-react";
+/** Week grid of timed lesson blocks. */
+
+import { RecurringMark } from "@/components/icons";
+import { isSameDay } from "@/lib/dates";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { LessonInstance } from "@/types/lesson";
@@ -132,7 +134,7 @@ export function WeekView({
                       today ? "text-primary/80" : "text-muted-foreground",
                     )}
                   >
-                    {format(day, "M月d日")}
+                    {day.getMonth() + 1}月{day.getDate()}日
                   </p>
                 </button>
               </div>
@@ -258,19 +260,10 @@ export function WeekView({
                             {instance.startTime} - {instance.endTime}
                           </p>
                         ) : null}
-                        {instance.isRecurring ? (
-                          <span
-                            className="mt-1 inline-flex text-muted-foreground"
-                            title={instance.isException ? "临时调课" : "循环课程"}
-                            aria-label={instance.isException ? "临时调课" : "循环课程"}
-                          >
-                            {instance.isException ? (
-                              <ClockArrowUp className="size-3" />
-                            ) : (
-                              <Repeat2 className="size-3" />
-                            )}
-                          </span>
-                        ) : null}
+                        <RecurringMark
+                          instance={instance}
+                          className="mt-1 inline-flex text-muted-foreground"
+                        />
                       </button>
                     );
                   })}

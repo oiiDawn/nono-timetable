@@ -1,24 +1,25 @@
-import { addDays } from "date-fns";
+import {
+  addDays,
+  formatDate,
+  isSameMonth,
+  parseDate,
+  startOfMonth,
+} from "@/lib/dates";
 import { describe, expect, it } from "vitest";
 import {
   expandRuleOccurrences,
   findConflicts,
-  formatDate,
   formatMonthLabel,
   getDefaultEndTime,
   getEndTimeOptions,
   getMonthGridDays,
-  getMonthStart,
   getScheduleTimeOptions,
   getTimeFromClickOffset,
   getWeekStart,
-  isOverflowDay,
   layoutDayInstances,
-  parseDate,
-  setTimeOverride,
   validateFormValues,
 } from "@/lib/schedule";
-import { reconcileExceptions } from "@/lib/repeat";
+import { reconcileExceptions, setOccurrenceException } from "@/lib/repeat";
 import type { LessonFormValues, LessonRule } from "@/types/lesson";
 
 const baseRule: LessonRule = {
@@ -145,12 +146,11 @@ describe("schedule", () => {
         },
       },
     };
-    const restored = setTimeOverride(
-      repeatingRule,
-      "2026-07-08",
-      "09:00",
-      "10:00",
-    );
+    const restored = setOccurrenceException(repeatingRule, "2026-07-08", {
+      date: "2026-07-08",
+      startTime: "09:00",
+      endTime: "10:00",
+    });
     const shortened = {
       ...restored,
       repeat: { ...restored.repeat!, endCount: 2 },
@@ -280,7 +280,7 @@ describe("schedule", () => {
   });
 
   it("builds a 42-day month grid starting on monday", () => {
-    const monthStart = getMonthStart(parseDate("2026-07-01"));
+    const monthStart = startOfMonth(parseDate("2026-07-01"));
     const days = getMonthGridDays(monthStart);
 
     expect(days).toHaveLength(42);
@@ -291,10 +291,10 @@ describe("schedule", () => {
   });
 
   it("marks overflow days outside the current month", () => {
-    const monthStart = getMonthStart(parseDate("2026-07-01"));
+    const monthStart = startOfMonth(parseDate("2026-07-01"));
     const days = getMonthGridDays(monthStart);
 
-    expect(isOverflowDay(days[0]!, monthStart)).toBe(true);
-    expect(isOverflowDay(days[2]!, monthStart)).toBe(false);
+    expect(isSameMonth(days[0]!, monthStart)).toBe(false);
+    expect(isSameMonth(days[2]!, monthStart)).toBe(true);
   });
 });

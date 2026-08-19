@@ -209,6 +209,42 @@ describe("repeat", () => {
     });
   });
 
+  it("does not rewrite the series start from a moved first occurrence", () => {
+    const rule: LessonRule = {
+      ...baseRule,
+      repeat: {
+        freq: "daily",
+        interval: 2,
+        endType: "count",
+        endCount: 3,
+        exceptions: {
+          "2026-07-06": {
+            date: "2026-07-07",
+            startTime: "13:00",
+            endTime: "15:00",
+          },
+        },
+      },
+    };
+    const updated = applyAllEventsEdit(
+      rule,
+      {
+        title: "钢琴课改名",
+        startDate: "2026-07-07",
+        startTime: "11:00",
+        endTime: "12:00",
+        notes: "",
+        repeat: rule.repeat,
+      },
+      "2026-07-06",
+    ).rule;
+
+    expect(updated.startDate).toBe("2026-07-06");
+    expect(updated.startTime).toBe("11:00");
+    expect(updated.title).toBe("钢琴课改名");
+    expect(updated.repeat?.exceptions?.["2026-07-06"]?.date).toBe("2026-07-07");
+  });
+
   it("detects overlapping instances from the same series", () => {
     const first = {
       ruleId: "a",

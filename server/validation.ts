@@ -1,7 +1,8 @@
-/** Request body parsing for lesson rules, including legacy repeat JSON. */
+/** Request body parsing for lesson rules. */
 
 import {
   isGeneratedOccurrenceDate,
+  isRecord,
   normalizeRepeat,
   normalizeRule,
 } from "../src/lib/repeat.js";
@@ -22,10 +23,6 @@ function isValidDate(value: string): boolean {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isValidTime(value: string): boolean {
   return TIME_PATTERN.test(value) && value >= "08:00" && value <= "22:00";
 }
@@ -39,21 +36,13 @@ function parseRepeat(
   if (value === null) return null;
   if (!isRecord(value)) throw new RequestError(400, "重复规则无效");
 
-  const hasLegacyInterval = Number.isInteger(value.intervalDays);
-  const hasInterval = Number.isInteger(value.interval);
-  if (
-    !hasLegacyInterval &&
-    !hasInterval &&
-    value.freq !== "daily" &&
-    value.freq !== "weekly"
-  ) {
+  if (value.interval !== undefined && !Number.isInteger(value.interval)) {
     throw new RequestError(400, "重复间隔无效");
   }
-
-  const interval = (
-    hasInterval ? value.interval : value.intervalDays
-  ) as number;
-  if (!Number.isInteger(interval) || interval < 1 || interval > 36_500) {
+  const interval = Number.isInteger(value.interval)
+    ? (value.interval as number)
+    : 1;
+  if (interval < 1 || interval > 36_500) {
     throw new RequestError(400, "重复间隔无效");
   }
   if (

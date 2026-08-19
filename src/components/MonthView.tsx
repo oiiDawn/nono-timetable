@@ -1,17 +1,16 @@
-import { format } from "date-fns";
-import { ClockArrowUp, Repeat2 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+/** Month grid of lesson instances. */
+
+import { RecurringMark } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import type { LessonInstance } from "@/types/lesson";
 import {
   formatDate,
   getMonthGridDays,
   groupInstancesByDate,
-  isOverflowDay,
   isToday,
-  MONTH_VIEW_MAX_VISIBLE_LESSONS,
   WEEKDAY_HEADERS,
 } from "@/lib/schedule";
+import { isSameMonth } from "@/lib/dates";
 
 interface MonthViewProps {
   monthStart: Date;
@@ -50,11 +49,9 @@ export function MonthView({
         {gridDays.map((day) => {
           const dateKey = formatDate(day);
           const dayInstances = grouped[dateKey] ?? [];
-          const visible = dayInstances.slice(0, MONTH_VIEW_MAX_VISIBLE_LESSONS);
-          const overflowCount = dayInstances.length - visible.length;
           const selected = selectedDate === dateKey;
           const today = isToday(day);
-          const overflow = isOverflowDay(day, monthStart);
+          const overflow = !isSameMonth(day, monthStart);
 
           return (
             <div
@@ -78,7 +75,7 @@ export function MonthView({
                   )}
                   onClick={() => onSelectDate(dateKey)}
                 >
-                  {format(day, "d")}
+                  {day.getDate()}
                 </button>
               </div>
 
@@ -89,7 +86,7 @@ export function MonthView({
                   onCreateOnDate(dateKey);
                 }}
               >
-                {visible.map((instance) => (
+                {dayInstances.map((instance) => (
                   <button
                     key={`${instance.ruleId}-${instance.originalDate}`}
                     type="button"
@@ -104,82 +101,12 @@ export function MonthView({
                     <span className="ml-1 text-[10px] text-muted-foreground">
                       {instance.startTime}
                     </span>
-                    {instance.isRecurring ? (
-                      <span
-                        className="ml-1 inline-flex align-middle text-muted-foreground"
-                        title={instance.isException ? "临时调课" : "循环课程"}
-                        aria-label={instance.isException ? "临时调课" : "循环课程"}
-                      >
-                        {instance.isException ? (
-                          <ClockArrowUp className="size-3" />
-                        ) : (
-                          <Repeat2 className="size-3" />
-                        )}
-                      </span>
-                    ) : null}
+                    <RecurringMark
+                      instance={instance}
+                      className="ml-1 inline-flex align-middle text-muted-foreground"
+                    />
                   </button>
                 ))}
-
-                {overflowCount > 0 ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="truncate rounded px-1.5 py-0.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onSelectDate(dateKey);
-                        }}
-                      >
-                        +{overflowCount} 更多
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-64 p-2">
-                      <p className="mb-2 px-1 text-sm font-semibold">
-                        {format(day, "M月d日")} 课程
-                      </p>
-                      <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-                        {dayInstances.map((instance) => (
-                          <button
-                            key={`${instance.ruleId}-${instance.originalDate}-all`}
-                            type="button"
-                            className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
-                            onClick={() => {
-                              onSelectDate(dateKey);
-                              onSelectLesson(instance);
-                            }}
-                          >
-                            <p className="font-medium">{instance.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {instance.startTime} - {instance.endTime}
-                              {instance.isRecurring ? (
-                                <span
-                                  className="ml-1 inline-flex align-middle"
-                                  title={
-                                    instance.isException
-                                      ? "临时调课"
-                                      : "循环课程"
-                                  }
-                                  aria-label={
-                                    instance.isException
-                                      ? "临时调课"
-                                      : "循环课程"
-                                  }
-                                >
-                                  {instance.isException ? (
-                                    <ClockArrowUp className="size-3" />
-                                  ) : (
-                                    <Repeat2 className="size-3" />
-                                  )}
-                                </span>
-                              ) : null}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                ) : null}
               </div>
             </div>
           );

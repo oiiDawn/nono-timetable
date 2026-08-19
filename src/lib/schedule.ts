@@ -3,24 +3,17 @@
 import {
   addDays,
   addMonths,
-  format,
-  isAfter,
-  isBefore,
+  formatDate,
+  getWeekStart,
   isSameDay,
-  isSameMonth,
-  parseISO,
-  startOfDay,
-  startOfMonth,
-} from "date-fns";
+} from "@/lib/dates";
 import { createId } from "@/lib/utils";
 import {
   DEFAULT_REPEAT_COUNT,
-  isGeneratedOccurrenceDate,
   listGeneratedOccurrenceDates,
   normalizeRule,
   repeatFromForm,
   repeatPresetOf,
-  setOccurrenceException,
   weekdayFromDate,
 } from "@/lib/repeat";
 import type {
@@ -29,6 +22,8 @@ import type {
   LessonInstance,
   LessonRule,
 } from "@/types/lesson";
+
+export { formatDate, getWeekStart, parseDate, startOfMonth } from "@/lib/dates";
 
 export const SCHEDULE_DAY_START = "08:00";
 export const SCHEDULE_DAY_END = "22:00";
@@ -43,17 +38,8 @@ export const SCHEDULE_BODY_HEIGHT_PX =
   SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
 export const SCHEDULE_TIME_INTERVAL_MINUTES = 5;
 
-export function formatDate(date: Date): string {
-  return format(date, "yyyy-MM-dd");
-}
-
-export function parseDate(dateStr: string): Date {
-  return startOfDay(parseISO(dateStr));
-}
-
 export const MONTH_GRID_WEEK_COUNT = 6;
 export const MONTH_GRID_DAY_COUNT = MONTH_GRID_WEEK_COUNT * 7;
-export const MONTH_VIEW_MAX_VISIBLE_LESSONS = 3;
 export const VIEW_MODE_STORAGE_KEY = "nono-timetable-view-mode";
 
 export type CalendarViewMode = "month" | "week";
@@ -68,22 +54,8 @@ export const WEEKDAY_HEADERS = [
   "周日",
 ] as const;
 
-export function getWeekStart(date: Date): Date {
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return startOfDay(addDays(date, diff));
-}
-
-export function getMonthStart(date: Date): Date {
-  return startOfMonth(date);
-}
-
-export function getMonthGridStart(monthStart: Date): Date {
-  return getWeekStart(monthStart);
-}
-
 export function getMonthGridDays(monthStart: Date): Date[] {
-  const gridStart = getMonthGridStart(monthStart);
+  const gridStart = getWeekStart(monthStart);
   return Array.from({ length: MONTH_GRID_DAY_COUNT }, (_, index) =>
     addDays(gridStart, index),
   );
@@ -98,21 +70,14 @@ export function getMonthGridRange(monthStart: Date): {
 }
 
 export function formatMonthLabel(monthStart: Date): string {
-  return format(monthStart, "yyyy年M月");
-}
-
-export function isOverflowDay(day: Date, monthStart: Date): boolean {
-  return !isSameMonth(day, monthStart);
+  return `${monthStart.getFullYear()}年${monthStart.getMonth() + 1}月`;
 }
 
 export function shiftMonthStart(monthStart: Date, offset: number): Date {
-  return startOfMonth(addMonths(monthStart, offset));
+  return addMonths(monthStart, offset);
 }
 
 export function loadStoredViewMode(): CalendarViewMode {
-  if (typeof window === "undefined") {
-    return "month";
-  }
   return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "week"
     ? "week"
     : "month";
@@ -128,7 +93,7 @@ export function getWeekDays(weekStart: Date): Date[] {
 
 export function formatWeekLabel(weekStart: Date): string {
   const weekEnd = addDays(weekStart, 6);
-  return `${format(weekStart, "M月d日")} - ${format(weekEnd, "M月d日")}`;
+  return `${weekStart.getMonth() + 1}月${weekStart.getDate()}日 - ${weekEnd.getMonth() + 1}月${weekEnd.getDate()}日`;
 }
 
 export function timeToMinutes(time: string): number {
@@ -295,12 +260,10 @@ export function layoutDayInstances(
 }
 
 export function isDateInWeek(date: Date, weekStart: Date): boolean {
-  const weekEnd = addDays(weekStart, 6);
-  return !isBefore(date, weekStart) && !isAfter(date, weekEnd);
-}
-
-export function getCurrentTimeLabel(date = new Date()): string {
-  return minutesToTime(date.getHours() * 60 + date.getMinutes());
+  const key = formatDate(date);
+  return (
+    key >= formatDate(weekStart) && key <= formatDate(addDays(weekStart, 6))
+  );
 }
 
 export function timesOverlap(
@@ -316,19 +279,6 @@ export function timesOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
-export function isRuleOccurrenceDate(rule: LessonRule, date: string): boolean {
-  return isGeneratedOccurrenceDate(rule, date);
-}
-
-export function setTimeOverride(
-  rule: LessonRule,
-  date: string,
-  startTime: string,
-  endTime: string,
-): LessonRule {
-  return setOccurrenceException(rule, date, { date, startTime, endTime });
-}
-
 export function expandRuleOccurrences(
   rule: LessonRule,
   rangeStart: Date,
@@ -341,8 +291,10 @@ export function expandRuleOccurrences(
   for (const originalDate of listGeneratedOccurrenceDates(normalized)) {
     if (excluded.has(originalDate)) continue;
     const instance = createInstance(normalized, originalDate);
-    const instanceDate = parseDate(instance.date);
-    if (isBefore(instanceDate, rangeStart) || isAfter(instanceDate, rangeEnd)) {
+    if (
+      instance.date < formatDate(rangeStart) ||
+      instance.date > formatDate(rangeEnd)
+    ) {
       continue;
     }
     instances.push(instance);
@@ -514,7 +466,7 @@ export function validateFormValues(values: LessonFormValues): string | null {
     if (
       values.endType === "date" &&
       values.endDate &&
-      isBefore(parseDate(values.endDate), parseDate(values.startDate))
+      values.endDate < values.startDate
     ) {
       return "结束日期不能早于开始日期";
     }

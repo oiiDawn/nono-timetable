@@ -1,4 +1,6 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+/** Month/week switcher and period navigation. */
+
+import { IconChevronLeft, IconChevronRight } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CalendarViewMode } from "@/lib/schedule";
@@ -40,11 +42,11 @@ export function CalendarToolbar({
 
       <div className="flex min-w-0 items-center justify-center gap-2">
         <Button variant="outline" size="icon" aria-label="上一页" onClick={onPrevious}>
-          <ChevronLeft className="h-4 w-4" />
+          <IconChevronLeft className="h-4 w-4" />
         </Button>
         <h2 className="truncate text-center text-lg font-semibold">{title}</h2>
         <Button variant="outline" size="icon" aria-label="下一页" onClick={onNext}>
-          <ChevronRight className="h-4 w-4" />
+          <IconChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
