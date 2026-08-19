@@ -9,8 +9,10 @@ import {
   Label,
   Spinner,
   TextField,
+  toast,
   Button as HeroButton,
 } from "@heroui/react";
+import { AppBar } from "@/components/AppBar";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MonthView } from "@/components/MonthView";
@@ -145,7 +147,7 @@ export default function App() {
       setRules([]);
       return;
     }
-    window.alert(error instanceof Error ? error.message : "操作失败，请重试。");
+    toast.danger(error instanceof Error ? error.message : "操作失败，请重试。");
   };
 
   const loadCloudLessons = async () => {
@@ -451,11 +453,20 @@ export default function App() {
     setWeekStart(getWeekStart(today));
   };
 
+  const handleLogout = () => {
+    void logout()
+      .catch(() => undefined)
+      .finally(() => {
+        setRules([]);
+        setAuthenticated(false);
+      });
+  };
+
   const copySubscriptionUrl = async () => {
     try {
       const url = await getCalendarUrl();
       await navigator.clipboard.writeText(url);
-      window.alert("Apple Calendar 订阅地址已复制。");
+      toast.success("Apple Calendar 订阅地址已复制。");
     } catch (error) {
       await handleApiError(error);
     }
@@ -478,39 +489,11 @@ export default function App() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      <header className="shrink-0 border-b bg-surface">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <img
-              src="/app-icon-96.png"
-              alt=""
-              className="size-10 rounded-xl"
-              width="40"
-              height="40"
-            />
-            <h1 className="text-2xl font-bold">排课表</h1>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => void copySubscriptionUrl()}>
-              复制订阅地址
-            </Button>
-            <Button variant="outline" onClick={goToToday}>回到今天</Button>
-            <Button
-              variant="outline"
-              onClick={() =>
-                void logout()
-                  .catch(() => undefined)
-                  .finally(() => {
-                    setRules([]);
-                    setAuthenticated(false);
-                  })
-              }
-            >
-              退出
-            </Button>
-          </div>
-        </div>
-      </header>
+      <AppBar
+        onCopySubscription={() => void copySubscriptionUrl()}
+        onGoToday={goToToday}
+        onLogout={handleLogout}
+      />
 
       <main className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4">
         <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
