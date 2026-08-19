@@ -1,0 +1,7 @@
+Drop custom styling in favor of HeroUI defaults
+
+Remove the remaining bespoke overrides — global border/font base rules,
+decorative classes on HeroUI components, and the stacked scope-dialog
+footer — and render the load-error state with the stock Alert component,
+so the app follows the default HeroUI theme instead of the old
+black-and-white look.
