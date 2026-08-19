@@ -1,3 +1,6 @@
+/** Apple Calendar feed: RRULE, EXDATE, and per-occurrence exceptions. */
+
+import { normalizeRule } from "../src/lib/repeat.js";
 import type { LessonRule } from "../src/types/lesson.js";
 
 const encoder = new TextEncoder();
@@ -19,13 +22,18 @@ function localDateTime(date: string, time: string): string {
 }
 
 function utcDateTime(value: string): string {
-  return new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return new Date(value)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 function shanghaiUntil(date: string, time: string): string {
   const [year, month, day] = date.split("-").map(Number);
   const [hour, minute] = time.split(":").map(Number);
-  return utcDateTime(new Date(Date.UTC(year, month - 1, day, hour - 8, minute)).toISOString());
+  return utcDateTime(
+    new Date(Date.UTC(year, month - 1, day, hour - 8, minute)).toISOString(),
+  );
 }
 
 function foldLine(line: string): string {
@@ -48,7 +56,14 @@ function foldLine(line: string): string {
 
 function recurrence(rule: LessonRule): string | undefined {
   if (!rule.repeat) return undefined;
-  const parts = ["FREQ=DAILY", `INTERVAL=${rule.repeat.intervalDays}`];
+  const freq = rule.repeat.freq === "weekly" ? "WEEKLY" : "DAILY";
+  const parts = [`FREQ=${freq}`, `INTERVAL=${rule.repeat.interval}`];
+  if (rule.repeat.freq === "weekly") {
+    parts.push("WKST=MO");
+    if (rule.repeat.byWeekdays && rule.repeat.byWeekdays.length > 0) {
+      parts.push(`BYDAY=${rule.repeat.byWeekdays.join(",")}`);
+    }
+  }
   if (rule.repeat.endType === "count") {
     parts.push(`COUNT=${rule.repeat.endCount ?? 1}`);
   } else if (rule.repeat.endDate) {
@@ -63,7 +78,7 @@ function appendEvent(
   date: string,
   startTime: string,
   endTime: string,
-  recurrenceId?: string,
+  options?: { recurrenceId?: string; title?: string; notes?: string },
 ): void {
   lines.push(
     "BEGIN:VEVENT",
@@ -72,16 +87,16 @@ function appendEvent(
     `LAST-MODIFIED:${utcDateTime(rule.updatedAt)}`,
     `SEQUENCE:${rule.version}`,
   );
-  if (recurrenceId) {
+  if (options?.recurrenceId) {
     lines.push(
-      `RECURRENCE-ID;TZID=Asia/Shanghai:${localDateTime(recurrenceId, rule.startTime)}`,
+      `RECURRENCE-ID;TZID=Asia/Shanghai:${localDateTime(options.recurrenceId, rule.startTime)}`,
     );
   }
   lines.push(
     `DTSTART;TZID=Asia/Shanghai:${localDateTime(date, startTime)}`,
     `DTEND;TZID=Asia/Shanghai:${localDateTime(date, endTime)}`,
-    `SUMMARY:${escapeText(rule.title)}`,
-    `DESCRIPTION:${escapeText(rule.notes)}`,
+    `SUMMARY:${escapeText(options?.title ?? rule.title)}`,
+    `DESCRIPTION:${escapeText(options?.notes ?? rule.notes)}`,
   );
 }
 
@@ -95,7 +110,7 @@ export function generateCalendar(rules: LessonRule[]): string {
     "X-WR-CALNAME:排课表",
     "X-WR-TIMEZONE:Asia/Shanghai",
     "BEGIN:VTIMEZONE",
-    "TZID:Asia/Shanghai",
+    "TZID=Asia/Shanghai",
     "X-LIC-LOCATION:Asia/Shanghai",
     "BEGIN:STANDARD",
     "TZOFFSETFROM:+0800",
@@ -106,22 +121,32 @@ export function generateCalendar(rules: LessonRule[]): string {
     "END:VTIMEZONE",
   ];
 
-  for (const rule of rules) {
+  for (const raw of rules) {
+    const rule = normalizeRule(raw);
     appendEvent(lines, rule, rule.startDate, rule.startTime, rule.endTime);
     const rrule = recurrence(rule);
     if (rrule) lines.push(rrule);
+    for (const date of rule.repeat?.excludedDates ?? []) {
+      lines.push(
+        `EXDATE;TZID=Asia/Shanghai:${localDateTime(date, rule.startTime)}`,
+      );
+    }
     lines.push("STATUS:CONFIRMED", "END:VEVENT");
 
-    for (const [date, override] of Object.entries(
-      rule.repeat?.timeOverrides ?? {},
+    for (const [originalDate, exception] of Object.entries(
+      rule.repeat?.exceptions ?? {},
     )) {
       appendEvent(
         lines,
         rule,
-        date,
-        override.startTime,
-        override.endTime,
-        date,
+        exception.date,
+        exception.startTime,
+        exception.endTime,
+        {
+          recurrenceId: originalDate,
+          title: exception.title,
+          notes: exception.notes,
+        },
       );
       lines.push("STATUS:CONFIRMED", "END:VEVENT");
     }

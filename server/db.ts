@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { normalizeRepeat } from "../src/lib/repeat.js";
 import type { LessonRule, RepeatRule } from "../src/types/lesson.js";
 
 interface LessonRow {
@@ -28,7 +29,8 @@ let schemaPromise: Promise<unknown> | undefined;
 
 export function ensureSchema(): Promise<unknown> {
   schemaPromise ??= sql()
-    .query(`
+    .query(
+      `
       CREATE TABLE IF NOT EXISTS lessons (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -41,7 +43,8 @@ export function ensureSchema(): Promise<unknown> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
-    `)
+    `,
+    )
     .catch((error: unknown) => {
       schemaPromise = undefined;
       throw error;
@@ -50,6 +53,7 @@ export function ensureSchema(): Promise<unknown> {
 }
 
 function mapRow(row: LessonRow): LessonRule {
+  const repeat = normalizeRepeat(row.repeat_rule);
   return {
     id: row.id,
     version: row.version,
@@ -58,7 +62,7 @@ function mapRow(row: LessonRow): LessonRule {
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
     notes: row.notes,
-    repeat: row.repeat_rule,
+    repeat,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -71,42 +75,80 @@ const RETURNING = `
 
 export async function listLessons(): Promise<LessonRule[]> {
   await ensureSchema();
-  const rows = await sql().query(
+  const rows = (await sql().query(
     `SELECT ${RETURNING} FROM lessons ORDER BY start_date, start_time, id`,
-  ) as LessonRow[];
+  )) as LessonRow[];
   return rows.map(mapRow);
 }
 
-export async function createLesson(rule: LessonRule): Promise<LessonRule | null> {
+export async function createLesson(
+  rule: LessonRule,
+): Promise<LessonRule | null> {
   await ensureSchema();
-  const rows = await sql().query(
+  const rows = (await sql().query(
     `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule)
      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
      ON CONFLICT (id) DO NOTHING
      RETURNING ${RETURNING}`,
-    [rule.id, rule.title, rule.startDate, rule.startTime, rule.endTime, rule.notes, JSON.stringify(rule.repeat)],
-  ) as LessonRow[];
+    [
+      rule.id,
+      rule.title,
+      rule.startDate,
+      rule.startTime,
+      rule.endTime,
+      rule.notes,
+      JSON.stringify(rule.repeat),
+    ],
+  )) as LessonRow[];
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-export async function updateLesson(rule: LessonRule): Promise<LessonRule | null> {
+export async function updateLesson(
+  rule: LessonRule,
+): Promise<LessonRule | null> {
   await ensureSchema();
-  const rows = await sql().query(
+  const rows = (await sql().query(
     `UPDATE lessons
      SET title = $2, start_date = $3, start_time = $4, end_time = $5,
          notes = $6, repeat_rule = $7::jsonb, version = version + 1, updated_at = NOW()
      WHERE id = $1 AND version = $8
      RETURNING ${RETURNING}`,
-    [rule.id, rule.title, rule.startDate, rule.startTime, rule.endTime, rule.notes, JSON.stringify(rule.repeat), rule.version],
-  ) as LessonRow[];
+    [
+      rule.id,
+      rule.title,
+      rule.startDate,
+      rule.startTime,
+      rule.endTime,
+      rule.notes,
+      JSON.stringify(rule.repeat),
+      rule.version,
+    ],
+  )) as LessonRow[];
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-export async function deleteLesson(id: string, version: number): Promise<boolean> {
+export async function deleteLesson(
+  id: string,
+  version: number,
+): Promise<boolean> {
   await ensureSchema();
-  const rows = await sql().query(
+  const rows = (await sql().query(
     "DELETE FROM lessons WHERE id = $1 AND version = $2 RETURNING id",
     [id, version],
-  ) as Array<{ id: string }>;
+  )) as Array<{ id: string }>;
   return rows.length === 1;
+}
+
+export async function splitLesson(
+  previous: LessonRule,
+  next: LessonRule,
+): Promise<{ previous: LessonRule; next: LessonRule } | null> {
+  const created = await createLesson(next);
+  if (!created) return null;
+  const updated = await updateLesson(previous);
+  if (!updated) {
+    await sql().query("DELETE FROM lessons WHERE id = $1", [created.id]);
+    return null;
+  }
+  return { previous: updated, next: created };
 }

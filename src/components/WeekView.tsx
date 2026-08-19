@@ -199,84 +199,84 @@ export function WeekView({
                     onCreateAtSlot(dateKey, startTime, getDefaultEndTime(startTime));
                   }}
                 >
-                      {Array.from({ length: SCHEDULE_HOUR_COUNT }, (_, index) => (
-                        <div
-                          key={index}
-                          className="pointer-events-none absolute inset-x-0 border-t border-border/60"
-                          style={{ top: index * SCHEDULE_HOUR_HEIGHT_PX }}
-                        />
-                      ))}
+                  {Array.from({ length: SCHEDULE_HOUR_COUNT }, (_, index) => (
+                    <div
+                      key={index}
+                      className="pointer-events-none absolute inset-x-0 border-t border-border/60"
+                      style={{ top: index * SCHEDULE_HOUR_HEIGHT_PX }}
+                    />
+                  ))}
 
-                      {showNowLine && isSameDay(day, now) ? (
-                        <div
-                          className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
-                          style={{ top: `${nowTopPercent}%` }}
-                        >
-                          <div className="h-2 w-2 rounded-full bg-destructive" />
-                          <div className="h-0.5 flex-1 bg-destructive" />
-                        </div>
-                      ) : null}
-
-                      {layouted.map(({ instance, column, columnCount }) => {
-                        const top = timeToTopPercent(instance.startTime);
-                        const height = timeRangeToHeightPercent(
-                          instance.startTime,
-                          instance.endTime,
-                        );
-                        const blockHeightPx =
-                          (timeToMinutes(instance.endTime) -
-                            timeToMinutes(instance.startTime)) *
-                          (SCHEDULE_BODY_HEIGHT_PX /
-                            (SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES));
-                        const showTime = blockHeightPx >= MIN_BLOCK_HEIGHT_FOR_TIME;
-                        const width = 100 / columnCount;
-                        const left = column * width;
-
-                        return (
-                          <button
-                            key={`${instance.ruleId}-${instance.date}`}
-                            type="button"
-                            data-lesson-block
-                            className="absolute z-10 overflow-hidden rounded-md border border-primary/20 bg-primary/15 px-1.5 py-1 text-left text-xs transition hover:bg-primary/25"
-                            style={{
-                              top: `${top}%`,
-                              height: `${height}%`,
-                              left: `calc(${left}% + 2px)`,
-                              width: `calc(${width}% - 4px)`,
-                            }}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelectDate(dateKey);
-                              onSelectLesson(instance);
-                            }}
-                          >
-                            <p className="truncate font-medium leading-tight">
-                              {instance.title}
-                            </p>
-                            {showTime ? (
-                              <p className="truncate text-[10px] text-muted-foreground">
-                                {instance.startTime} - {instance.endTime}
-                              </p>
-                            ) : null}
-                            {instance.isRecurring ? (
-                              <span
-                                className="mt-1 inline-flex text-muted-foreground"
-                                title={instance.isTimeOverride ? "临时调课" : "循环课程"}
-                                aria-label={instance.isTimeOverride ? "临时调课" : "循环课程"}
-                              >
-                                {instance.isTimeOverride ? (
-                                  <ClockArrowUp className="size-3" />
-                                ) : (
-                                  <Repeat2 className="size-3" />
-                                )}
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                  {showNowLine && isSameDay(day, now) ? (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 z-20 flex items-center"
+                      style={{ top: `${nowTopPercent}%` }}
+                    >
+                      <div className="h-2 w-2 rounded-full bg-destructive" />
+                      <div className="h-0.5 flex-1 bg-destructive" />
                     </div>
-                  );
-                })}
+                  ) : null}
+
+                  {layouted.map(({ instance, column, columnCount }) => {
+                    const top = timeToTopPercent(instance.startTime);
+                    const height = timeRangeToHeightPercent(
+                      instance.startTime,
+                      instance.endTime,
+                    );
+                    const blockHeightPx =
+                      (timeToMinutes(instance.endTime) -
+                        timeToMinutes(instance.startTime)) *
+                      (SCHEDULE_BODY_HEIGHT_PX /
+                        (SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES));
+                    const showTime = blockHeightPx >= MIN_BLOCK_HEIGHT_FOR_TIME;
+                    const width = 100 / columnCount;
+                    const left = column * width;
+
+                    return (
+                      <button
+                        key={`${instance.ruleId}-${instance.originalDate}`}
+                        type="button"
+                        data-lesson-block
+                        className="absolute z-10 overflow-hidden rounded-md border border-primary/20 bg-primary/15 px-1.5 py-1 text-left text-xs transition hover:bg-primary/25"
+                        style={{
+                          top: `${top}%`,
+                          height: `${height}%`,
+                          left: `calc(${left}% + 2px)`,
+                          width: `calc(${width}% - 4px)`,
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectDate(dateKey);
+                          onSelectLesson(instance);
+                        }}
+                      >
+                        <p className="truncate font-medium leading-tight">
+                          {instance.title}
+                        </p>
+                        {showTime ? (
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {instance.startTime} - {instance.endTime}
+                          </p>
+                        ) : null}
+                        {instance.isRecurring ? (
+                          <span
+                            className="mt-1 inline-flex text-muted-foreground"
+                            title={instance.isException ? "临时调课" : "循环课程"}
+                            aria-label={instance.isException ? "临时调课" : "循环课程"}
+                          >
+                            {instance.isException ? (
+                              <ClockArrowUp className="size-3" />
+                            ) : (
+                              <Repeat2 className="size-3" />
+                            )}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

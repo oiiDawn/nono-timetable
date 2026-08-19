@@ -13,16 +13,21 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { ...init, headers });
-  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  const body = (await response.json().catch(() => null)) as {
+    error?: unknown;
+  } | null;
   if (!response.ok) {
-    const message = typeof body?.error === "string" ? body.error : "请求失败，请稍后重试";
+    const message =
+      typeof body?.error === "string" ? body.error : "请求失败，请稍后重试";
     throw new ApiError(response.status, message);
   }
   return body as T;
 }
 
 export async function getSession(): Promise<boolean> {
-  const result = await requestJson<{ authenticated: boolean }>("/api/auth/session");
+  const result = await requestJson<{ authenticated: boolean }>(
+    "/api/auth/session",
+  );
   return result.authenticated;
 }
 
@@ -56,6 +61,17 @@ export async function updateLesson(rule: LessonRule): Promise<LessonRule> {
     { method: "PUT", body: JSON.stringify(rule) },
   );
   return result.lesson;
+}
+
+export async function splitLesson(
+  previous: LessonRule,
+  next: LessonRule,
+): Promise<{ previous: LessonRule; next: LessonRule }> {
+  const result = await requestJson<{ previous: LessonRule; next: LessonRule }>(
+    "/api/lessons/split",
+    { method: "POST", body: JSON.stringify({ previous, next }) },
+  );
+  return result;
 }
 
 export async function removeLesson(rule: LessonRule): Promise<void> {

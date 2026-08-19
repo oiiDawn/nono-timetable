@@ -1,3 +1,5 @@
+/** Create and edit a lesson, including Apple-style repeat presets. */
+
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,21 +13,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
+  DEFAULT_REPEAT_COUNT,
+  WEEKDAY_LABELS,
+  WEEKDAYS,
+  ensureStartWeekday,
+  weekdayFromDate,
+} from "@/lib/repeat";
+import {
   getDefaultEndTime,
   getEndTimeOptions,
   getScheduleTimeOptions,
 } from "@/lib/schedule";
-import type { ConflictInfo, LessonFormValues } from "@/types/lesson";
+import type { ConflictInfo, LessonFormValues, RepeatPreset, Weekday } from "@/types/lesson";
 
 interface LessonFormProps {
   open: boolean;
   title: string;
   initialValues: LessonFormValues;
   conflicts: ConflictInfo[];
-  timeOnly?: {
-    originalStartTime: string;
-    originalEndTime: string;
-  };
   onDelete?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: LessonFormValues) => void;
@@ -42,7 +47,6 @@ export function LessonForm({
   title,
   initialValues,
   conflicts,
-  timeOnly,
   onDelete,
   onOpenChange,
   onSubmit,
@@ -53,6 +57,9 @@ export function LessonForm({
     () => getEndTimeOptions(values.startTime),
     [values.startTime],
   );
+  const startWeekday = weekdayFromDate(values.startDate);
+  const showCustom = values.repeatPreset === "custom";
+  const showEnd = values.repeatPreset !== "none";
 
   useEffect(() => {
     if (open) {
@@ -73,6 +80,57 @@ export function LessonForm({
     setValues((current) => ({ ...current, [key]: value }));
   };
 
+  const setRepeatPreset = (preset: RepeatPreset) => {
+    setValues((current) => {
+      const next = { ...current, repeatPreset: preset };
+      if (preset === "daily") {
+        next.freq = "daily";
+        next.interval = 1;
+      } else if (preset === "weekly") {
+        next.freq = "weekly";
+        next.interval = 1;
+        next.byWeekdays = [weekdayFromDate(current.startDate)];
+      } else if (preset === "custom" && current.repeatPreset !== "custom") {
+        next.freq = current.repeatPreset === "weekly" ? "weekly" : "daily";
+        next.interval = current.repeatPreset === "none" ? 1 : current.interval;
+        if (next.freq === "weekly") {
+          next.byWeekdays = ensureStartWeekday(current.startDate, current.byWeekdays);
+        }
+      }
+      if (preset !== "none" && current.repeatPreset === "none") {
+        next.endType = "count";
+        next.endCount = DEFAULT_REPEAT_COUNT;
+      }
+      return next;
+    });
+  };
+
+  const setStartDate = (startDate: string) => {
+    setValues((current) => {
+      const previousWeekday = weekdayFromDate(current.startDate);
+      let byWeekdays = current.byWeekdays;
+      if (current.repeatPreset === "weekly") {
+        byWeekdays = [weekdayFromDate(startDate)];
+      } else if (current.repeatPreset === "custom" && current.freq === "weekly") {
+        byWeekdays = ensureStartWeekday(
+          startDate,
+          current.byWeekdays.filter((day) => day !== previousWeekday),
+        );
+      }
+      return { ...current, startDate, byWeekdays };
+    });
+  };
+
+  const toggleWeekday = (day: Weekday) => {
+    if (day === startWeekday) return;
+    setValues((current) => {
+      const selected = current.byWeekdays.includes(day)
+        ? current.byWeekdays.filter((item) => item !== day)
+        : [...current.byWeekdays, day];
+      return { ...current, byWeekdays: ensureStartWeekday(current.startDate, selected) };
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -87,40 +145,28 @@ export function LessonForm({
             onSubmit(values);
           }}
         >
-          {timeOnly ? (
-            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-              <p className="font-medium">{values.title}</p>
-              <p className="mt-1 text-muted-foreground">
-                {values.startDate} · 原时间 {timeOnly.originalStartTime}–
-                {timeOnly.originalEndTime}
-              </p>
-            </div>
-          ) : (
+          <div className="space-y-2">
+            <Label htmlFor="title">名称</Label>
+            <Input
+              id="title"
+              value={values.title}
+              onChange={(event) => update("title", event.target.value)}
+              placeholder="小九、佑佑..."
+              required
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="title">名称</Label>
+              <Label htmlFor="startDate">日期</Label>
               <Input
-                id="title"
-                value={values.title}
-                onChange={(event) => update("title", event.target.value)}
-                placeholder="小九、佑佑..."
+                id="startDate"
+                type="date"
+                value={values.startDate}
+                onChange={(event) => setStartDate(event.target.value)}
                 required
               />
             </div>
-          )}
-
-          <div className={cn("grid gap-4", timeOnly ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
-            {!timeOnly ? (
-              <div className="space-y-2">
-                <Label htmlFor="startDate">开始日期</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={values.startDate}
-                  onChange={(event) => update("startDate", event.target.value)}
-                  required
-                />
-              </div>
-            ) : null}
             <div className="space-y-2">
               <Label htmlFor="startTime">开始时间</Label>
               <select
@@ -165,114 +211,148 @@ export function LessonForm({
             </div>
           </div>
 
-          {!timeOnly ? (
-            <div className="space-y-2">
-              <Label htmlFor="notes">备注</Label>
-              <Textarea
-                id="notes"
-                value={values.notes}
-                onChange={(event) => update("notes", event.target.value)}
-                placeholder="可选"
-              />
-            </div>
-          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="notes">备注</Label>
+            <Textarea
+              id="notes"
+              value={values.notes}
+              onChange={(event) => update("notes", event.target.value)}
+              placeholder="可选"
+            />
+          </div>
 
-          {!timeOnly ? (
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={values.isRepeating}
-                onChange={(event) => update("isRepeating", event.target.checked)}
-              />
-              按周期重复
-            </label>
-          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="repeatPreset">重复</Label>
+            <select
+              id="repeatPreset"
+              className={nativeSelectClassName}
+              value={values.repeatPreset}
+              onChange={(event) => setRepeatPreset(event.target.value as RepeatPreset)}
+            >
+              <option value="none">不重复</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
 
-          {!timeOnly && values.isRepeating ? (
+          {showCustom ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span>每</span>
                 <Input
-                  id="intervalDays"
+                  id="interval"
                   type="number"
                   min={1}
                   className="h-9 w-16 px-2 text-center"
-                  value={values.intervalDays}
-                  onChange={(event) =>
-                    update("intervalDays", Number(event.target.value) || 1)
-                  }
+                  value={values.interval}
+                  onChange={(event) => update("interval", Number(event.target.value) || 1)}
                 />
-                <span>天重复一次</span>
+                <select
+                  className={cn(nativeSelectClassName, "h-9 w-20")}
+                  value={values.freq}
+                  onChange={(event) => {
+                    const freq = event.target.value as LessonFormValues["freq"];
+                    setValues((current) => ({
+                      ...current,
+                      freq,
+                      byWeekdays:
+                        freq === "weekly"
+                          ? ensureStartWeekday(current.startDate, current.byWeekdays)
+                          : current.byWeekdays,
+                    }));
+                  }}
+                >
+                  <option value="daily">天</option>
+                  <option value="weekly">周</option>
+                </select>
               </div>
 
-              <fieldset className="space-y-3">
-                <legend className="mb-1 text-sm font-medium">结束方式</legend>
-
-                <div className="flex h-9 items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="endType"
-                    id="endType-count"
-                    value="count"
-                    checked={values.endType === "count"}
-                    onChange={() => update("endType", "count")}
-                    className="size-4 shrink-0"
-                  />
-                  <label htmlFor="endType-count" className="shrink-0">
-                    按循环次数
-                  </label>
-                  <div className="inline-flex h-9 items-center gap-2">
-                    <Input
-                      id="endCount"
-                      type="number"
-                      min={1}
-                      className={cn(
-                        "h-9 w-20 px-2 text-center",
-                        values.endType !== "count" && "invisible",
-                      )}
-                      disabled={values.endType !== "count"}
-                      tabIndex={values.endType === "count" ? 0 : -1}
-                      value={values.endCount}
-                      onChange={(event) =>
-                        update("endCount", Number(event.target.value) || 1)
-                      }
-                    />
-                    <span
-                      className={cn("shrink-0", values.endType !== "count" && "invisible")}
-                    >
-                      次
-                    </span>
+              {values.freq === "weekly" ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">重复于</p>
+                  <div className="flex flex-wrap gap-2">
+                    {WEEKDAYS.map((day) => {
+                      const selected = values.byWeekdays.includes(day);
+                      const locked = day === startWeekday;
+                      return (
+                        <Button
+                          key={day}
+                          type="button"
+                          size="sm"
+                          variant={selected ? "default" : "outline"}
+                          disabled={locked}
+                          onClick={() => toggleWeekday(day)}
+                        >
+                          {WEEKDAY_LABELS[day]}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
-
-                <div className="flex h-9 items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="endType"
-                    id="endType-date"
-                    value="date"
-                    checked={values.endType === "date"}
-                    onChange={() => update("endType", "date")}
-                    className="size-4 shrink-0"
-                  />
-                  <label htmlFor="endType-date" className="shrink-0">
-                    按结束日期
-                  </label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    className={cn(
-                      "h-9 w-36",
-                      values.endType !== "date" && "invisible",
-                    )}
-                    disabled={values.endType !== "date"}
-                    tabIndex={values.endType === "date" ? 0 : -1}
-                    value={values.endDate}
-                    onChange={(event) => update("endDate", event.target.value)}
-                  />
-                </div>
-              </fieldset>
+              ) : null}
             </div>
+          ) : null}
+
+          {showEnd ? (
+            <fieldset className="space-y-3">
+              <legend className="mb-1 text-sm font-medium">结束方式</legend>
+              <div className="flex h-9 items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="endType"
+                  id="endType-count"
+                  value="count"
+                  checked={values.endType === "count"}
+                  onChange={() => update("endType", "count")}
+                  className="size-4 shrink-0"
+                />
+                <label htmlFor="endType-count" className="shrink-0">
+                  重复
+                </label>
+                <Input
+                  id="endCount"
+                  type="number"
+                  min={1}
+                  className={cn(
+                    "h-9 w-20 px-2 text-center",
+                    values.endType !== "count" && "invisible",
+                  )}
+                  disabled={values.endType !== "count"}
+                  tabIndex={values.endType === "count" ? 0 : -1}
+                  value={values.endCount}
+                  onChange={(event) =>
+                    update("endCount", Number(event.target.value) || 1)
+                  }
+                />
+                <span className={cn("shrink-0", values.endType !== "count" && "invisible")}>
+                  次
+                </span>
+              </div>
+              <div className="flex h-9 items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="endType"
+                  id="endType-date"
+                  value="date"
+                  checked={values.endType === "date"}
+                  onChange={() => update("endType", "date")}
+                  className="size-4 shrink-0"
+                />
+                <label htmlFor="endType-date" className="shrink-0">
+                  结束于
+                </label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  className={cn("h-9 w-36", values.endType !== "date" && "invisible")}
+                  disabled={values.endType !== "date"}
+                  tabIndex={values.endType === "date" ? 0 : -1}
+                  value={values.endDate}
+                  onChange={(event) => update("endDate", event.target.value)}
+                />
+              </div>
+            </fieldset>
           ) : null}
 
           {conflicts.length > 0 ? (
@@ -280,7 +360,7 @@ export function LessonForm({
               <p className="font-medium">检测到 {conflicts.length} 处时间冲突，仍可保存。</p>
               <ul className="mt-2 space-y-1">
                 {conflicts.slice(0, 3).map((conflict) => (
-                  <li key={`${conflict.instance.date}-${conflict.instance.startTime}`}>
+                  <li key={`${conflict.instance.originalDate}-${conflict.instance.startTime}`}>
                     {conflict.instance.date} {conflict.instance.startTime} 与{" "}
                     {conflict.conflictsWith.map((item) => item.title).join("、")} 重叠
                   </li>
@@ -290,25 +370,7 @@ export function LessonForm({
           ) : null}
 
           <div className="flex items-center justify-between gap-2">
-            {timeOnly ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={
-                  values.startTime === timeOnly.originalStartTime &&
-                  values.endTime === timeOnly.originalEndTime
-                }
-                onClick={() =>
-                  setValues((current) => ({
-                    ...current,
-                    startTime: timeOnly.originalStartTime,
-                    endTime: timeOnly.originalEndTime,
-                  }))
-                }
-              >
-                恢复原时间
-              </Button>
-            ) : onDelete ? (
+            {onDelete ? (
               <Button type="button" variant="destructive" onClick={onDelete}>
                 删除
               </Button>

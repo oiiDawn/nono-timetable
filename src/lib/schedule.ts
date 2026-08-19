@@ -1,7 +1,8 @@
+/** Calendar layout, instance expansion, conflicts, and lesson form conversion. */
+
 import {
   addDays,
   addMonths,
-  differenceInCalendarDays,
   format,
   isAfter,
   isBefore,
@@ -12,13 +13,21 @@ import {
   startOfMonth,
 } from "date-fns";
 import { createId } from "@/lib/utils";
+import {
+  DEFAULT_REPEAT_COUNT,
+  isGeneratedOccurrenceDate,
+  listGeneratedOccurrenceDates,
+  normalizeRule,
+  repeatFromForm,
+  repeatPresetOf,
+  setOccurrenceException,
+  weekdayFromDate,
+} from "@/lib/repeat";
 import type {
   ConflictInfo,
   LessonFormValues,
   LessonInstance,
   LessonRule,
-  RepeatRule,
-  LessonTimeOverride,
 } from "@/types/lesson";
 
 export const SCHEDULE_DAY_START = "08:00";
@@ -30,7 +39,8 @@ export const SCHEDULE_DAY_TOTAL_MINUTES =
   SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES;
 export const SCHEDULE_HOUR_COUNT = SCHEDULE_DAY_TOTAL_MINUTES / 60;
 export const SCHEDULE_HOUR_HEIGHT_PX = 56;
-export const SCHEDULE_BODY_HEIGHT_PX = SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
+export const SCHEDULE_BODY_HEIGHT_PX =
+  SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
 export const SCHEDULE_TIME_INTERVAL_MINUTES = 5;
 
 export function formatDate(date: Date): string {
@@ -79,7 +89,10 @@ export function getMonthGridDays(monthStart: Date): Date[] {
   );
 }
 
-export function getMonthGridRange(monthStart: Date): { start: Date; end: Date } {
+export function getMonthGridRange(monthStart: Date): {
+  start: Date;
+  end: Date;
+} {
   const days = getMonthGridDays(monthStart);
   return { start: days[0]!, end: days[days.length - 1]! };
 }
@@ -100,7 +113,9 @@ export function loadStoredViewMode(): CalendarViewMode {
   if (typeof window === "undefined") {
     return "month";
   }
-  return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "week" ? "week" : "month";
+  return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "week"
+    ? "week"
+    : "month";
 }
 
 export function storeViewMode(mode: CalendarViewMode): void {
@@ -162,7 +177,10 @@ export function snapMinutesToScheduleInterval(minutes: number): number {
   );
 }
 
-export function getTimeFromClickOffset(offsetY: number, totalHeight: number): string {
+export function getTimeFromClickOffset(
+  offsetY: number,
+  totalHeight: number,
+): string {
   const ratio = Math.max(0, Math.min(1, offsetY / totalHeight));
   const minutes =
     SCHEDULE_DAY_START_MINUTES + ratio * SCHEDULE_DAY_TOTAL_MINUTES;
@@ -175,19 +193,26 @@ export function getTimeFromClickOffset(offsetY: number, totalHeight: number): st
 }
 
 export function getDefaultEndTime(startTime: string): string {
-  return minutesToTime(timeToMinutes(startTime) + DEFAULT_LESSON_DURATION_MINUTES);
+  return minutesToTime(
+    timeToMinutes(startTime) + DEFAULT_LESSON_DURATION_MINUTES,
+  );
 }
 
 export function timeToTopPercent(time: string): number {
   return (
-    ((timeToMinutes(time) - SCHEDULE_DAY_START_MINUTES) / SCHEDULE_DAY_TOTAL_MINUTES) *
+    ((timeToMinutes(time) - SCHEDULE_DAY_START_MINUTES) /
+      SCHEDULE_DAY_TOTAL_MINUTES) *
     100
   );
 }
 
-export function timeRangeToHeightPercent(startTime: string, endTime: string): number {
+export function timeRangeToHeightPercent(
+  startTime: string,
+  endTime: string,
+): number {
   return (
-    ((timeToMinutes(endTime) - timeToMinutes(startTime)) / SCHEDULE_DAY_TOTAL_MINUTES) *
+    ((timeToMinutes(endTime) - timeToMinutes(startTime)) /
+      SCHEDULE_DAY_TOTAL_MINUTES) *
     100
   );
 }
@@ -198,7 +223,9 @@ export interface LayoutedLessonInstance {
   columnCount: number;
 }
 
-export function layoutDayInstances(instances: LessonInstance[]): LayoutedLessonInstance[] {
+export function layoutDayInstances(
+  instances: LessonInstance[],
+): LayoutedLessonInstance[] {
   if (instances.length === 0) {
     return [];
   }
@@ -289,31 +316,8 @@ export function timesOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
-function isWithinRepeatBounds(
-  occurrenceDate: Date,
-  repeat: RepeatRule,
-  occurrenceIndex: number,
-): boolean {
-  if (repeat.endType === "count") {
-    return occurrenceIndex < (repeat.endCount ?? 1);
-  }
-
-  if (repeat.endType === "date" && repeat.endDate) {
-    return !isAfter(occurrenceDate, parseDate(repeat.endDate));
-  }
-
-  return true;
-}
-
 export function isRuleOccurrenceDate(rule: LessonRule, date: string): boolean {
-  if (!rule.repeat) return false;
-  const difference = differenceInCalendarDays(
-    parseDate(date),
-    parseDate(rule.startDate),
-  );
-  const interval = Math.max(1, rule.repeat.intervalDays);
-  if (difference < 0 || difference % interval !== 0) return false;
-  return isWithinRepeatBounds(parseDate(date), rule.repeat, difference / interval);
+  return isGeneratedOccurrenceDate(rule, date);
 }
 
 export function setTimeOverride(
@@ -322,51 +326,7 @@ export function setTimeOverride(
   startTime: string,
   endTime: string,
 ): LessonRule {
-  if (!rule.repeat || !isRuleOccurrenceDate(rule, date)) return rule;
-  const timeOverrides = { ...rule.repeat.timeOverrides };
-  if (startTime === rule.startTime && endTime === rule.endTime) {
-    delete timeOverrides[date];
-  } else {
-    timeOverrides[date] = { startTime, endTime };
-  }
-  return {
-    ...rule,
-    updatedAt: new Date().toISOString(),
-    repeat: {
-      ...rule.repeat,
-      timeOverrides:
-        Object.keys(timeOverrides).length > 0 ? timeOverrides : undefined,
-    },
-  };
-}
-
-export function reconcileTimeOverrides(
-  rule: LessonRule,
-  timeOverrides: Record<string, LessonTimeOverride>,
-): { rule: LessonRule; invalidDates: string[] } {
-  const invalidDates = Object.keys(timeOverrides).filter(
-    (date) => !isRuleOccurrenceDate(rule, date),
-  );
-  if (!rule.repeat) return { rule, invalidDates };
-  const invalidDateSet = new Set(invalidDates);
-
-  const retained = Object.fromEntries(
-    Object.entries(timeOverrides).filter(
-      ([date, time]) =>
-        !invalidDateSet.has(date) &&
-        (time.startTime !== rule.startTime || time.endTime !== rule.endTime),
-    ),
-  );
-  return {
-    invalidDates,
-    rule: {
-      ...rule,
-      repeat: {
-        ...rule.repeat,
-        timeOverrides: Object.keys(retained).length > 0 ? retained : undefined,
-      },
-    },
-  };
+  return setOccurrenceException(rule, date, { date, startTime, endTime });
 }
 
 export function expandRuleOccurrences(
@@ -374,51 +334,38 @@ export function expandRuleOccurrences(
   rangeStart: Date,
   rangeEnd: Date,
 ): LessonInstance[] {
-  const startDate = parseDate(rule.startDate);
+  const normalized = normalizeRule(rule);
+  const excluded = new Set(normalized.repeat?.excludedDates ?? []);
   const instances: LessonInstance[] = [];
 
-  if (!rule.repeat) {
-    if (!isBefore(startDate, rangeStart) && !isAfter(startDate, rangeEnd)) {
-      instances.push(createInstance(rule, rule.startDate));
+  for (const originalDate of listGeneratedOccurrenceDates(normalized)) {
+    if (excluded.has(originalDate)) continue;
+    const instance = createInstance(normalized, originalDate);
+    const instanceDate = parseDate(instance.date);
+    if (isBefore(instanceDate, rangeStart) || isAfter(instanceDate, rangeEnd)) {
+      continue;
     }
-    return instances;
-  }
-
-  const interval = Math.max(1, rule.repeat.intervalDays);
-  let occurrenceIndex = 0;
-
-  while (occurrenceIndex < 10000) {
-    const current = addDays(startDate, occurrenceIndex * interval);
-
-    if (!isWithinRepeatBounds(current, rule.repeat, occurrenceIndex)) {
-      break;
-    }
-
-    if (isAfter(current, rangeEnd)) {
-      break;
-    }
-
-    if (!isBefore(current, rangeStart)) {
-      instances.push(createInstance(rule, formatDate(current)));
-    }
-
-    occurrenceIndex += 1;
+    instances.push(instance);
   }
 
   return instances;
 }
 
-function createInstance(rule: LessonRule, date: string): LessonInstance {
-  const timeOverride = rule.repeat?.timeOverrides?.[date];
+function createInstance(
+  rule: LessonRule,
+  originalDate: string,
+): LessonInstance {
+  const exception = rule.repeat?.exceptions?.[originalDate];
   return {
     ruleId: rule.id,
-    date,
-    title: rule.title,
-    startTime: timeOverride?.startTime ?? rule.startTime,
-    endTime: timeOverride?.endTime ?? rule.endTime,
-    notes: rule.notes,
+    originalDate,
+    date: exception?.date ?? originalDate,
+    title: exception?.title ?? rule.title,
+    startTime: exception?.startTime ?? rule.startTime,
+    endTime: exception?.endTime ?? rule.endTime,
+    notes: exception?.notes ?? rule.notes,
     isRecurring: Boolean(rule.repeat),
-    isTimeOverride: Boolean(timeOverride),
+    isException: Boolean(exception),
   };
 }
 
@@ -456,7 +403,8 @@ export function findConflicts(
   const conflictsWith = instances.filter(
     (instance) =>
       instance.date === candidate.date &&
-      instance.ruleId !== candidate.ruleId &&
+      (instance.ruleId !== candidate.ruleId ||
+        instance.originalDate !== candidate.originalDate) &&
       timesOverlap(
         candidate.startTime,
         candidate.endTime,
@@ -486,18 +434,29 @@ export function findConflictsForRule(
     .filter((conflict): conflict is ConflictInfo => conflict !== null);
 }
 
-export function ruleToFormValues(rule: LessonRule): LessonFormValues {
+export function ruleToFormValues(
+  rule: LessonRule,
+  instance?: Pick<
+    LessonInstance,
+    "date" | "title" | "startTime" | "endTime" | "notes"
+  >,
+): LessonFormValues {
+  const normalized = normalizeRule(rule);
+  const repeat = normalized.repeat;
+  const startDate = instance?.date ?? normalized.startDate;
   return {
-    title: rule.title,
-    startDate: rule.startDate,
-    startTime: rule.startTime,
-    endTime: rule.endTime,
-    notes: rule.notes,
-    isRepeating: Boolean(rule.repeat),
-    intervalDays: rule.repeat?.intervalDays ?? 1,
-    endType: rule.repeat?.endType ?? "count",
-    endCount: rule.repeat?.endCount ?? 10,
-    endDate: rule.repeat?.endDate ?? rule.startDate,
+    title: instance?.title ?? normalized.title,
+    startDate,
+    startTime: instance?.startTime ?? normalized.startTime,
+    endTime: instance?.endTime ?? normalized.endTime,
+    notes: instance?.notes ?? normalized.notes,
+    repeatPreset: repeatPresetOf(normalized),
+    freq: repeat?.freq ?? "weekly",
+    interval: repeat?.interval ?? 1,
+    byWeekdays: repeat?.byWeekdays ?? [weekdayFromDate(startDate)],
+    endType: repeat?.endType ?? "count",
+    endCount: repeat?.endCount ?? DEFAULT_REPEAT_COUNT,
+    endDate: repeat?.endDate ?? startDate,
   };
 }
 
@@ -506,15 +465,11 @@ export function formValuesToRule(
   existing?: LessonRule,
 ): LessonRule {
   const now = new Date().toISOString();
-  const repeat = values.isRepeating
-    ? {
-        intervalDays: Math.max(1, values.intervalDays),
-        endType: values.endType,
-        endCount: values.endType === "count" ? Math.max(1, values.endCount) : undefined,
-        endDate: values.endType === "date" ? values.endDate : undefined,
-        timeOverrides: existing?.repeat?.timeOverrides,
-      }
-    : null;
+  const repeat = repeatFromForm(values);
+  if (repeat && existing?.repeat) {
+    repeat.exceptions = existing.repeat.exceptions;
+    repeat.excludedDates = existing.repeat.excludedDates;
+  }
 
   return {
     id: existing?.id ?? createId(),
@@ -546,9 +501,9 @@ export function validateFormValues(values: LessonFormValues): string | null {
   if (timeToMinutes(values.startTime) >= timeToMinutes(values.endTime)) {
     return "结束时间必须晚于开始时间";
   }
-  if (values.isRepeating) {
-    if (values.intervalDays < 1) {
-      return "重复间隔至少为 1 天";
+  if (values.repeatPreset !== "none") {
+    if (values.interval < 1) {
+      return "重复间隔至少为 1";
     }
     if (values.endType === "count" && values.endCount < 1) {
       return "循环次数至少为 1 次";

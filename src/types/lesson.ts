@@ -1,16 +1,27 @@
-export type RepeatEndType = "count" | "date";
+/** Lesson series, generated instances, and form state for the timetable. */
 
-export interface LessonTimeOverride {
+export type RepeatEndType = "count" | "date";
+export type RepeatFreq = "daily" | "weekly";
+export type RepeatPreset = "none" | "daily" | "weekly" | "custom";
+export type Weekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+
+export interface OccurrenceException {
+  date: string;
   startTime: string;
   endTime: string;
+  title?: string;
+  notes?: string;
 }
 
 export interface RepeatRule {
-  intervalDays: number;
+  freq: RepeatFreq;
+  interval: number;
+  byWeekdays?: Weekday[];
   endType: RepeatEndType;
   endCount?: number;
   endDate?: string;
-  timeOverrides?: Record<string, LessonTimeOverride>;
+  excludedDates?: string[];
+  exceptions?: Record<string, OccurrenceException>;
 }
 
 export interface LessonRule {
@@ -28,13 +39,14 @@ export interface LessonRule {
 
 export interface LessonInstance {
   ruleId: string;
+  originalDate: string;
   date: string;
   title: string;
   startTime: string;
   endTime: string;
   notes: string;
   isRecurring: boolean;
-  isTimeOverride: boolean;
+  isException: boolean;
 }
 
 export interface LessonFormValues {
@@ -43,8 +55,10 @@ export interface LessonFormValues {
   startTime: string;
   endTime: string;
   notes: string;
-  isRepeating: boolean;
-  intervalDays: number;
+  repeatPreset: RepeatPreset;
+  freq: RepeatFreq;
+  interval: number;
+  byWeekdays: Weekday[];
   endType: RepeatEndType;
   endCount: number;
   endDate: string;

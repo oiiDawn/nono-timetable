@@ -21,15 +21,23 @@ describe("parseLessonRule", () => {
   });
 
   it("rejects impossible dates and out-of-window times", () => {
-    expect(() => parseLessonRule({ ...validRule, startDate: "2026-02-30" })).toThrow(RequestError);
-    expect(() => parseLessonRule({ ...validRule, startTime: "07:45" })).toThrow(RequestError);
+    expect(() =>
+      parseLessonRule({ ...validRule, startDate: "2026-02-30" }),
+    ).toThrow(RequestError);
+    expect(() => parseLessonRule({ ...validRule, startTime: "07:45" })).toThrow(
+      RequestError,
+    );
   });
 
   it("rejects recurrence ending before the first lesson", () => {
     expect(() =>
       parseLessonRule({
         ...validRule,
-        repeat: { intervalDays: 1, endType: "date", endDate: "2026-07-19" },
+        repeat: {
+          intervalDays: 1,
+          endType: "date",
+          endDate: "2026-07-19",
+        } as never,
       }),
     ).toThrow(RequestError);
   });
@@ -43,7 +51,19 @@ describe("parseLessonRule", () => {
         "2026-07-27": { startTime: "13:00", endTime: "15:00" },
       },
     };
-    expect(parseLessonRule({ ...validRule, repeat }).repeat).toEqual(repeat);
+    expect(parseLessonRule({ ...validRule, repeat }).repeat).toEqual({
+      freq: "daily",
+      interval: 7,
+      endType: "count",
+      endCount: 3,
+      exceptions: {
+        "2026-07-27": {
+          date: "2026-07-27",
+          startTime: "13:00",
+          endTime: "15:00",
+        },
+      },
+    });
     expect(() =>
       parseLessonRule({
         ...validRule,

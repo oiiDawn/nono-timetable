@@ -1,3 +1,5 @@
+/** Timetable shell: calendar views, lesson editor, and recurrence save/delete scope. */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays } from "date-fns";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
@@ -21,8 +23,21 @@ import {
   login,
   logout,
   removeLesson,
+  splitLesson,
   updateLesson,
 } from "@/lib/api";
+import {
+  DEFAULT_REPEAT_COUNT,
+  applyAllEventsEdit,
+  excludeOccurrence,
+  hasRepeatRuleChanged,
+  isFirstGeneratedOccurrence,
+  remainingOccurrenceCount,
+  setOccurrenceException,
+  splitSeries,
+  truncateRuleBefore,
+  weekdayFromDate,
+} from "@/lib/repeat";
 import {
   expandRulesForRange,
   findConflicts,
@@ -36,14 +51,13 @@ import {
   getWeekStart,
   loadStoredViewMode,
   parseDate,
-  reconcileTimeOverrides,
   ruleToFormValues,
-  setTimeOverride,
   shiftMonthStart,
   storeViewMode,
   validateFormValues,
   type CalendarViewMode,
 } from "@/lib/schedule";
+import { createId } from "@/lib/utils";
 import type {
   ConflictInfo,
   LessonFormValues,
@@ -51,21 +65,30 @@ import type {
   LessonRule,
 } from "@/types/lesson";
 
-type FormMode = "create" | "editRule" | "editOccurrence";
+type RecurrenceScope = "this" | "future" | "all";
 
 function createDefaultFormValues(date?: string): LessonFormValues {
+  const startDate = date ?? formatDate(new Date());
   return {
     title: "",
-    startDate: date ?? formatDate(new Date()),
+    startDate,
     startTime: "09:00",
     endTime: "11:00",
     notes: "",
-    isRepeating: false,
-    intervalDays: 1,
+    repeatPreset: "none",
+    freq: "weekly",
+    interval: 1,
+    byWeekdays: [weekdayFromDate(startDate)],
     endType: "count",
-    endCount: 10,
-    endDate: date ?? formatDate(new Date()),
+    endCount: DEFAULT_REPEAT_COUNT,
+    endDate: startDate,
   };
+}
+
+function sortRules(rules: LessonRule[]): LessonRule[] {
+  return [...rules].sort((a, b) =>
+    `${a.startDate}-${a.startTime}`.localeCompare(`${b.startDate}-${b.startTime}`),
+  );
 }
 
 export default function App() {
@@ -81,33 +104,35 @@ export default function App() {
     formatDate(new Date()),
   );
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<FormMode>("create");
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [editingOccurrenceDate, setEditingOccurrenceDate] = useState<string | null>(
-    null,
+  const [editingInstance, setEditingInstance] = useState<LessonInstance | null>(null);
+  const [initialFormValues, setInitialFormValues] = useState<LessonFormValues>(() =>
+    createDefaultFormValues(),
   );
-  const [scopeInstance, setScopeInstance] = useState<LessonInstance | null>(null);
   const [formValues, setFormValues] = useState<LessonFormValues>(() =>
     createDefaultFormValues(),
   );
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
+  const [pendingSave, setPendingSave] = useState<LessonFormValues | null>(null);
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   const weekEnd = addDays(weekStart, 6);
   const monthRange = getMonthGridRange(monthStart);
-
   const weekInstances = useMemo(
     () => expandRulesForRange(rules, weekStart, weekEnd),
     [rules, weekStart, weekEnd],
   );
-
   const monthInstances = useMemo(
     () => expandRulesForRange(rules, monthRange.start, monthRange.end),
     [rules, monthRange.end, monthRange.start],
   );
-
   const calendarTitle =
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
   const editingRule = rules.find((rule) => rule.id === editingRuleId);
+  const originalDate = editingInstance?.originalDate ?? editingRule?.startDate ?? "";
+  const thisEventDisabled =
+    Boolean(pendingSave) && hasRepeatRuleChanged(initialFormValues, pendingSave);
 
   const handleApiError = async (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -149,83 +174,131 @@ export default function App() {
   }, [authenticated]);
 
   const openCreateForm = (date: string, startTime = "09:00", endTime = "11:00") => {
+    const values = { ...createDefaultFormValues(date), startTime, endTime };
     setFormMode("create");
     setEditingRuleId(null);
-    setEditingOccurrenceDate(null);
-    setFormValues({
-      ...createDefaultFormValues(date),
-      startTime,
-      endTime,
-    });
-    setPendingConflicts([]);
-    setFormOpen(true);
-  };
-
-  const openRuleEditForm = (instance: LessonInstance) => {
-    const rule = rules.find((item) => item.id === instance.ruleId);
-    if (!rule) return;
-
-    setScopeInstance(null);
-    setFormMode("editRule");
-    setEditingRuleId(rule.id);
-    setEditingOccurrenceDate(null);
-    setFormValues(ruleToFormValues(rule));
-    setPendingConflicts([]);
-    setFormOpen(true);
-  };
-
-  const openOccurrenceEditForm = (instance: LessonInstance) => {
-    const rule = rules.find((item) => item.id === instance.ruleId);
-    if (!rule?.repeat) return;
-
-    setScopeInstance(null);
-    setFormMode("editOccurrence");
-    setEditingRuleId(rule.id);
-    setEditingOccurrenceDate(instance.date);
-    setFormValues({
-      ...ruleToFormValues(rule),
-      startDate: instance.date,
-      startTime: instance.startTime,
-      endTime: instance.endTime,
-      isRepeating: false,
-    });
+    setEditingInstance(null);
+    setInitialFormValues(values);
+    setFormValues(values);
     setPendingConflicts([]);
     setFormOpen(true);
   };
 
   const openEditForm = (instance: LessonInstance) => {
-    if (instance.isRecurring) {
-      setScopeInstance(instance);
-      return;
-    }
-    openRuleEditForm(instance);
+    const rule = rules.find((item) => item.id === instance.ruleId);
+    if (!rule) return;
+    const values = ruleToFormValues(rule, instance);
+    setFormMode("edit");
+    setEditingRuleId(rule.id);
+    setEditingInstance(instance);
+    setInitialFormValues(values);
+    setFormValues(values);
+    setPendingConflicts([]);
+    setFormOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!editingRuleId) {
-      return;
-    }
+  const closeForm = () => {
+    setFormOpen(false);
+    setPendingConflicts([]);
+    setPendingSave(null);
+    setPendingDelete(false);
+  };
 
-    const rule = rules.find((item) => item.id === editingRuleId);
-    if (!rule) return;
-    const confirmed = window.confirm(
-      rule.repeat
-        ? "将删除整个循环课程系列，确定继续吗？"
-        : "确定删除这节课吗？",
+  const replaceRules = (nextRules: LessonRule[]) => {
+    setRules(sortRules(nextRules));
+  };
+
+  const persistRule = async (nextRule: LessonRule, existing?: LessonRule) => {
+    const saved = existing ? await updateLesson(nextRule) : await createLesson(nextRule);
+    replaceRules([...rules.filter((rule) => rule.id !== saved.id), saved]);
+    setSelectedDate(nextRule.startDate);
+    closeForm();
+  };
+
+  const checkConflicts = (nextRule: LessonRule, focusDate?: string): boolean => {
+    const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
+    if (focusDate) {
+      const day = parseDate(focusDate);
+      const candidate = expandRulesForRange([nextRule], day, day).find(
+        (item) => item.originalDate === (editingInstance?.originalDate ?? focusDate),
+      ) ?? expandRulesForRange([nextRule], day, day)[0];
+      const conflict = candidate
+        ? findConflicts(candidate, expandRulesForRange([...otherRules, nextRule], day, day))
+        : null;
+      if (conflict && pendingConflicts.length === 0) {
+        setPendingConflicts([conflict]);
+        return false;
+      }
+      return true;
+    }
+    const conflictRangeStart = getWeekStart(parseDate(nextRule.startDate));
+    const conflictRangeEnd = addDays(conflictRangeStart, 365 * 2);
+    const conflicts = findConflictsForRule(
+      nextRule,
+      [...otherRules, nextRule],
+      conflictRangeStart,
+      conflictRangeEnd,
     );
-    if (!confirmed) {
+    if (conflicts.length > 0 && pendingConflicts.length === 0) {
+      setPendingConflicts(conflicts);
+      return false;
+    }
+    return true;
+  };
+
+  const confirmInvalidExceptions = (invalidDates: string[]): boolean => {
+    if (invalidDates.length === 0) return true;
+    return window.confirm(
+      `修改循环规则将移除 ${invalidDates.length} 条已失效的单次调整，确定继续吗？`,
+    );
+  };
+
+  const saveThisEvent = async (values: LessonFormValues, rule: LessonRule) => {
+    if (!editingInstance) return;
+    const nextRule = setOccurrenceException(rule, editingInstance.originalDate, {
+      date: values.startDate,
+      startTime: values.startTime,
+      endTime: values.endTime,
+      title: values.title.trim(),
+      notes: values.notes.trim(),
+    });
+    if (!checkConflicts(nextRule, values.startDate)) return;
+    await persistRule(nextRule, rule);
+  };
+
+  const saveAllEvents = async (values: LessonFormValues, rule: LessonRule) => {
+    const drafted = formValuesToRule(values, rule);
+    const { rule: nextRule, invalidDates } = rule.repeat
+      ? applyAllEventsEdit(rule, drafted, originalDate)
+      : { rule: drafted, invalidDates: [] };
+    if (!confirmInvalidExceptions(invalidDates)) return;
+    if (!checkConflicts(nextRule)) return;
+    await persistRule(nextRule, rule);
+  };
+
+  const saveFutureEvents = async (values: LessonFormValues, rule: LessonRule) => {
+    if (!rule.repeat || isFirstGeneratedOccurrence(rule, originalDate)) {
+      await saveAllEvents(values, rule);
       return;
     }
-
-    try {
-      await removeLesson(rule);
-      setRules((current) => current.filter((item) => item.id !== rule.id));
-      setPendingConflicts([]);
-      setFormOpen(false);
-    } catch (error) {
-      await handleApiError(error);
-      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
+    const drafted = formValuesToRule(values);
+    if (drafted.repeat?.endType === "count" && values.endCount === initialFormValues.endCount) {
+      drafted.repeat.endCount = remainingOccurrenceCount(rule, originalDate);
     }
+    const { previous, next } = splitSeries(rule, originalDate, {
+      ...drafted,
+      id: createId(),
+      version: 0,
+    });
+    if (!checkConflicts(next) || !checkConflicts(previous)) return;
+    const saved = await splitLesson(previous, next);
+    replaceRules([
+      ...rules.filter((item) => item.id !== rule.id && item.id !== saved.next.id),
+      saved.previous,
+      saved.next,
+    ]);
+    setSelectedDate(values.startDate);
+    closeForm();
   };
 
   const handleSubmit = async (values: LessonFormValues) => {
@@ -234,85 +307,95 @@ export default function App() {
       window.alert(validationError);
       return;
     }
+    setFormValues(values);
 
     try {
+      if (formMode === "create") {
+        const nextRule = formValuesToRule(values);
+        if (!checkConflicts(nextRule)) return;
+        await persistRule(nextRule);
+        return;
+      }
+
       const existing = editingRuleId
         ? rules.find((rule) => rule.id === editingRuleId)
         : undefined;
-      if (formMode === "editOccurrence") {
-        if (!existing?.repeat || !editingOccurrenceDate) return;
-        const nextRule = setTimeOverride(
-          existing,
-          editingOccurrenceDate,
-          values.startTime,
-          values.endTime,
-        );
-        const occurrenceDate = parseDate(editingOccurrenceDate);
-        const candidate = expandRulesForRange(
-          [nextRule],
-          occurrenceDate,
-          occurrenceDate,
-        )[0];
-        const conflict = candidate
-          ? findConflicts(
-              candidate,
-              expandRulesForRange(rules, occurrenceDate, occurrenceDate),
-            )
-          : null;
-        if (conflict && pendingConflicts.length === 0) {
-          setPendingConflicts([conflict]);
-          return;
-        }
-        const savedRule = await updateLesson(nextRule);
-        setRules((current) =>
-          current.map((rule) => (rule.id === savedRule.id ? savedRule : rule)),
-        );
-        setPendingConflicts([]);
-        setFormOpen(false);
-        setSelectedDate(editingOccurrenceDate);
+      if (!existing) return;
+
+      if (!existing.repeat) {
+        const nextRule = formValuesToRule(values, existing);
+        if (!checkConflicts(nextRule)) return;
+        await persistRule(nextRule, existing);
         return;
       }
 
-      let nextRule = formValuesToRule(values, existing);
-      const previousOverrides = existing?.repeat?.timeOverrides ?? {};
-      const reconciled = reconcileTimeOverrides(nextRule, previousOverrides);
-      nextRule = reconciled.rule;
-      const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
-
-      const conflictRangeStart = getWeekStart(parseDate(nextRule.startDate));
-      const conflictRangeEnd = addDays(conflictRangeStart, 365 * 2);
-      const conflicts = findConflictsForRule(
-        nextRule,
-        [...otherRules, nextRule],
-        conflictRangeStart,
-        conflictRangeEnd,
-      );
-
-      if (conflicts.length > 0 && pendingConflicts.length === 0) {
-        setPendingConflicts(conflicts);
-        return;
-      }
-      if (
-        reconciled.invalidDates.length > 0 &&
-        !window.confirm(
-          `修改循环规则将移除 ${reconciled.invalidDates.length} 条已失效的临时调课，确定继续吗？`,
-        )
-      ) {
-        return;
-      }
-
-      const savedRule = existing
-        ? await updateLesson(nextRule)
-        : await createLesson(nextRule);
-      setRules((current) => {
-        const remaining = current.filter((rule) => rule.id !== savedRule.id);
-        return [...remaining, savedRule].sort((a, b) =>
-          `${a.startDate}-${a.startTime}`.localeCompare(`${b.startDate}-${b.startTime}`),
-        );
-      });
       setPendingConflicts([]);
-      setFormOpen(false);
-      setSelectedDate(nextRule.startDate);
+      setPendingSave(values);
+    } catch (error) {
+      await handleApiError(error);
+      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
+    }
+  };
+
+  const handleSaveScope = async (scope: RecurrenceScope) => {
+    if (!pendingSave || !editingRule) return;
+    try {
+      if (scope === "this") await saveThisEvent(pendingSave, editingRule);
+      else if (scope === "future") await saveFutureEvents(pendingSave, editingRule);
+      else await saveAllEvents(pendingSave, editingRule);
+    } catch (error) {
+      await handleApiError(error);
+      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
+    }
+  };
+
+  const handleDelete = () => {
+    if (!editingRule) return;
+    if (!editingRule.repeat) {
+      void deleteEntireRule(editingRule);
+      return;
+    }
+    setPendingDelete(true);
+  };
+
+  const deleteEntireRule = async (rule: LessonRule) => {
+    const confirmed = window.confirm(
+      rule.repeat ? "将删除整个循环课程系列，确定继续吗？" : "确定删除这节课吗？",
+    );
+    if (!confirmed) return;
+    try {
+      await removeLesson(rule);
+      setRules((current) => current.filter((item) => item.id !== rule.id));
+      closeForm();
+    } catch (error) {
+      await handleApiError(error);
+      if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
+    }
+  };
+
+  const handleDeleteScope = async (scope: RecurrenceScope) => {
+    if (!editingRule) return;
+    try {
+      if (scope === "all" || !editingRule.repeat) {
+        await deleteEntireRule(editingRule);
+        return;
+      }
+      if (scope === "this") {
+        if (!editingInstance) return;
+        const nextRule = excludeOccurrence(editingRule, editingInstance.originalDate);
+        await persistRule(nextRule, editingRule);
+        return;
+      }
+      if (isFirstGeneratedOccurrence(editingRule, originalDate)) {
+        await deleteEntireRule(editingRule);
+        return;
+      }
+      const truncated = truncateRuleBefore(editingRule, originalDate);
+      if (!truncated) {
+        await deleteEntireRule(editingRule);
+        return;
+      }
+      await persistRule(truncated, editingRule);
     } catch (error) {
       await handleApiError(error);
       if (error instanceof ApiError && error.status === 409) void loadCloudLessons();
@@ -465,66 +548,58 @@ export default function App() {
         </section>
       </main>
 
-      <Dialog
-        open={Boolean(scopeInstance)}
+      <LessonForm
+        open={formOpen}
+        title={formMode === "create" ? "新增课程" : "编辑课程"}
+        initialValues={formValues}
+        conflicts={pendingConflicts}
+        onDelete={formMode === "edit" ? handleDelete : undefined}
         onOpenChange={(open) => {
-          if (!open) setScopeInstance(null);
+          if (!open) closeForm();
+          else setFormOpen(true);
         }}
-      >
+        onSubmit={(values) => void handleSubmit(values)}
+      />
+
+      <Dialog open={Boolean(pendingSave)} onOpenChange={(open) => !open && setPendingSave(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑循环课程</DialogTitle>
+            <DialogTitle>保存循环课程</DialogTitle>
           </DialogHeader>
-          {scopeInstance ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {scopeInstance.title} · {scopeInstance.date}{" "}
-                {scopeInstance.startTime}–{scopeInstance.endTime}
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={() => openOccurrenceEditForm(scopeInstance)}>
-                  仅这一节
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => openRuleEditForm(scopeInstance)}
-                >
-                  整个循环
-                </Button>
-              </div>
-            </>
-          ) : null}
+          <p className="text-sm text-muted-foreground">这些更改要应用到哪些课次？</p>
+          <div className="grid gap-2">
+            <Button disabled={thisEventDisabled} onClick={() => void handleSaveScope("this")}>
+              仅此事件
+            </Button>
+            <Button variant="outline" onClick={() => void handleSaveScope("future")}>
+              所有未来事件
+            </Button>
+            <Button variant="outline" onClick={() => void handleSaveScope("all")}>
+              全部事件
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      <LessonForm
-        open={formOpen}
-        title={
-          formMode === "create"
-            ? "新增课程"
-            : formMode === "editOccurrence"
-              ? "调整本节时间"
-              : "编辑课程系列"
-        }
-        initialValues={formValues}
-        conflicts={pendingConflicts}
-        timeOnly={
-          formMode === "editOccurrence" && editingRule
-            ? {
-                originalStartTime: editingRule.startTime,
-                originalEndTime: editingRule.endTime,
-              }
-            : undefined
-        }
-        onDelete={formMode === "editRule" ? handleDelete : undefined}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) {
-            setPendingConflicts([]);
-          }
-        }}
-        onSubmit={handleSubmit}
-      />
+      <Dialog open={pendingDelete} onOpenChange={(open) => !open && setPendingDelete(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除循环课程</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">要删除哪些课次？</p>
+          <div className="grid gap-2">
+            <Button variant="destructive" onClick={() => void handleDeleteScope("this")}>
+              仅此事件
+            </Button>
+            <Button variant="outline" onClick={() => void handleDeleteScope("future")}>
+              所有未来事件
+            </Button>
+            <Button variant="outline" onClick={() => void handleDeleteScope("all")}>
+              全部事件
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
