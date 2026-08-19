@@ -110,7 +110,7 @@ export function generateCalendar(rules: LessonRule[]): string {
     "X-WR-CALNAME:排课表",
     "X-WR-TIMEZONE:Asia/Shanghai",
     "BEGIN:VTIMEZONE",
-    "TZID=Asia/Shanghai",
+    "TZID:Asia/Shanghai",
     "X-LIC-LOCATION:Asia/Shanghai",
     "BEGIN:STANDARD",
     "TZOFFSETFROM:+0800",

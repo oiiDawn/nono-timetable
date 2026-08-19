@@ -1,6 +1,6 @@
 /** Recurrence expansion, exceptions, truncation, and series splits. */
 
-import { addDays, formatDate, getWeekStart, parseDate } from "./dates";
+import { addDays, formatDate, getWeekStart, parseDate } from "./dates.js";
 import type {
   LessonFormValues,
   LessonRule,
@@ -9,7 +9,7 @@ import type {
   RepeatPreset,
   RepeatRule,
   Weekday,
-} from "../types/lesson";
+} from "../types/lesson.js";
 
 export const DEFAULT_REPEAT_COUNT = 5;
 export const WEEKDAYS: Weekday[] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
@@ -511,13 +511,19 @@ export function applyAllEventsEdit(
 ): { rule: LessonRule; invalidDates: string[] } {
   const normalized = normalizeRule(rule);
   const first = isFirstGeneratedOccurrence(normalized, originalDate);
+  const movedFirstDate = first
+    ? normalized.repeat?.exceptions?.[originalDate]?.date
+    : undefined;
   const next: LessonRule = {
     ...normalized,
     title: values.title,
     startTime: values.startTime,
     endTime: values.endTime,
     notes: values.notes,
-    startDate: first ? values.startDate : normalized.startDate,
+    startDate:
+      first && values.startDate !== movedFirstDate
+        ? values.startDate
+        : normalized.startDate,
     repeat: values.repeat
       ? {
           ...values.repeat,
