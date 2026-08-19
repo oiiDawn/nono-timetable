@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+/** Below Tailwind's `sm` breakpoint; keep in sync with the media query in index.css. */
+export const MOBILE_MEDIA_QUERY = "(max-width: 639px)";
+
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
 

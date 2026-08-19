@@ -1,24 +1,6 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
-/* Legacy shadcn-style token names aliased onto HeroUI theme variables,
-   so pre-migration components follow the active light/dark theme. */
-@theme inline {
-  --color-primary: var(--foreground);
-  --color-primary-foreground: var(--background);
-  --color-secondary: var(--default);
-  --color-secondary-foreground: var(--default-foreground);
-  --color-muted-foreground: var(--muted);
-  --color-card: var(--surface);
-  --color-card-foreground: var(--surface-foreground);
-  --color-popover: var(--overlay);
-  --color-popover-foreground: var(--overlay-foreground);
-  --color-destructive: var(--danger);
-  --color-destructive-foreground: var(--danger-foreground);
-  --color-input: var(--border);
-  --color-ring: var(--focus);
-}
-
 @layer base {
   * {
     @apply border-border;
@@ -36,5 +18,15 @@
   #root {
     height: 100%;
     overflow: hidden;
+  }
+
+  /* Phones use natural page scrolling instead of a locked app shell. */
+  @media (max-width: 639px) {
+    html,
+    body,
+    #root {
+      height: auto;
+      overflow: visible;
+    }
   }
 }

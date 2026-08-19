@@ -17,7 +17,7 @@ import {
   ToggleButtonGroup,
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import {
   DEFAULT_REPEAT_COUNT,
   WEEKDAY_LABELS,
@@ -106,7 +106,7 @@ export function LessonForm({
   onOpenChange,
   onSubmit,
 }: LessonFormProps) {
-  const isMobile = useMediaQuery("(max-width: 639px)");
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [values, setValues] = useState(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
   const startTimeOptions = useMemo(() => getScheduleTimeOptions(), []);

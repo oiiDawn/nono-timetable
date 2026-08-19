@@ -37,6 +37,31 @@ export const SCHEDULE_HOUR_HEIGHT_PX = 56;
 export const SCHEDULE_BODY_HEIGHT_PX =
   SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
 export const SCHEDULE_TIME_INTERVAL_MINUTES = 5;
+export const SCHEDULE_HOUR_LABELS = Array.from(
+  { length: SCHEDULE_HOUR_COUNT + 1 },
+  (_, index) => `${String(8 + index).padStart(2, "0")}:00`,
+);
+export const MIN_BLOCK_HEIGHT_FOR_TIME_PX = 40;
+
+export function isWithinScheduleWindow(nowMinutes: number): boolean {
+  return (
+    nowMinutes >= SCHEDULE_DAY_START_MINUTES &&
+    nowMinutes <= SCHEDULE_DAY_END_MINUTES
+  );
+}
+
+export function nowLineTopPercent(nowMinutes: number): number {
+  return (
+    ((nowMinutes - SCHEDULE_DAY_START_MINUTES) / SCHEDULE_DAY_TOTAL_MINUTES) * 100
+  );
+}
+
+export function blockHeightPx(startTime: string, endTime: string): number {
+  return (
+    (timeToMinutes(endTime) - timeToMinutes(startTime)) *
+    (SCHEDULE_BODY_HEIGHT_PX / SCHEDULE_DAY_TOTAL_MINUTES)
+  );
+}
 
 export const MONTH_GRID_WEEK_COUNT = 6;
 export const MONTH_GRID_DAY_COUNT = MONTH_GRID_WEEK_COUNT * 7;

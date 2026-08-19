@@ -58,7 +58,7 @@ export function MonthView({
               key={dateKey}
               className={cn(
                 "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
-                selected && "bg-accent/10",
+                selected && "bg-accent/15",
                 overflow && "bg-background-secondary",
               )}
             >

@@ -16,6 +16,7 @@ import {
 import { AppBar } from "@/components/AppBar";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
+import { MobileDayView, MobileMonthView } from "@/components/MobileCalendar";
 import { MonthView } from "@/components/MonthView";
 import { WeekView } from "@/components/WeekView";
 import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
@@ -58,7 +59,7 @@ import {
   storeViewMode,
   type CalendarViewMode,
 } from "@/lib/schedule";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createId } from "@/lib/utils";
 import type {
   ConflictInfo,
@@ -68,6 +69,12 @@ import type {
 } from "@/types/lesson";
 
 type RecurrenceScope = "this" | "future" | "all";
+
+interface ConfirmRequest {
+  title: string;
+  description: string;
+  action: () => void;
+}
 
 function createDefaultFormValues(date?: string): LessonFormValues {
   const startDate = date ?? formatDate(new Date());
@@ -94,6 +101,7 @@ function sortRules(rules: LessonRule[]): LessonRule[] {
 }
 
 export default function App() {
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -118,11 +126,7 @@ export default function App() {
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
   const [pendingSave, setPendingSave] = useState<LessonFormValues | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [confirmRequest, setConfirmRequest] = useState<{
-    title: string;
-    description: string;
-    action: () => void;
-  } | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
 
   const weekEnd = addDays(weekStart, 6);
   const monthRange = getMonthGridRange(monthStart);
@@ -480,10 +484,7 @@ export default function App() {
   if (authenticated === null) {
     return (
       <div className="grid h-dvh place-items-center">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Spinner color="current" size="sm" />
-          正在检查登录状态…
-        </div>
+        <LoadingState label="正在检查登录状态…" />
       </div>
     );
   }
@@ -493,15 +494,33 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+    <div
+      className={
+        isMobile
+          ? "flex min-h-dvh flex-col bg-background"
+          : "flex h-dvh flex-col overflow-hidden bg-background"
+      }
+    >
       <AppBar
         onCopySubscription={() => void copySubscriptionUrl()}
         onGoToday={goToToday}
         onLogout={handleLogout}
       />
 
-      <main className="mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4">
-        <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <main
+        className={
+          isMobile
+            ? "mx-auto w-full max-w-7xl flex-1 px-3 py-3"
+            : "mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4"
+        }
+      >
+        <section
+          className={
+            isMobile
+              ? "flex flex-col gap-3"
+              : "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+          }
+        >
           <CalendarToolbar
             viewMode={viewMode}
             title={calendarTitle}
@@ -515,7 +534,7 @@ export default function App() {
               <p>{loadError}</p>
               <Button
                 className="mt-3"
-                variant="outline"
+                variant="secondary"
                 onPress={() => void loadCloudLessons()}
               >
                 重新加载
@@ -523,16 +542,13 @@ export default function App() {
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {loading ? (
-              <div className="grid h-full place-items-center">
-                <div className="flex items-center gap-2 text-sm text-muted">
-                  <Spinner color="current" size="sm" />
-                  正在加载云端课表…
-                </div>
+          {isMobile ? (
+            loading ? (
+              <div className="grid place-items-center py-16">
+                <LoadingState label="正在加载云端课表…" />
               </div>
             ) : viewMode === "month" ? (
-              <MonthView
+              <MobileMonthView
                 monthStart={monthStart}
                 instances={monthInstances}
                 selectedDate={selectedDate}
@@ -541,7 +557,7 @@ export default function App() {
                 onCreateOnDate={(date) => openCreateForm(date)}
               />
             ) : (
-              <WeekView
+              <MobileDayView
                 weekStart={weekStart}
                 instances={weekInstances}
                 selectedDate={selectedDate}
@@ -552,8 +568,37 @@ export default function App() {
                   openCreateForm(date, startTime, endTime);
                 }}
               />
-            )}
-          </div>
+            )
+          ) : (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {loading ? (
+                <div className="grid h-full place-items-center">
+                  <LoadingState label="正在加载云端课表…" />
+                </div>
+              ) : viewMode === "month" ? (
+                <MonthView
+                  monthStart={monthStart}
+                  instances={monthInstances}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                  onSelectLesson={openEditForm}
+                  onCreateOnDate={(date) => openCreateForm(date)}
+                />
+              ) : (
+                <WeekView
+                  weekStart={weekStart}
+                  instances={weekInstances}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                  onSelectLesson={openEditForm}
+                  onCreateAtSlot={(date, startTime, endTime) => {
+                    setSelectedDate(date);
+                    openCreateForm(date, startTime, endTime);
+                  }}
+                />
+              )}
+            </div>
+          )}
         </section>
       </main>
 
@@ -630,6 +675,15 @@ export default function App() {
   );
 }
 
+function LoadingState({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted">
+      <Spinner color="current" size="sm" />
+      {label}
+    </div>
+  );
+}
+
 function ScopeDialog({
   open,
   title,
@@ -651,7 +705,7 @@ function ScopeDialog({
   onFuture: () => void;
   onAll: () => void;
 }) {
-  const isMobile = useMediaQuery("(max-width: 639px)");
+  const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
 
   return (
     <Modal>

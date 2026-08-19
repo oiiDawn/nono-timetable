@@ -2,10 +2,12 @@
 
 import { RecurringMark } from "@/components/icons";
 import { isSameDay } from "@/lib/dates";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 import type { LessonInstance } from "@/types/lesson";
 import {
+  blockHeightPx,
   formatDate,
   getDefaultEndTime,
   getTimeFromClickOffset,
@@ -13,14 +15,15 @@ import {
   groupInstancesByDate,
   isDateInWeek,
   isToday,
+  isWithinScheduleWindow,
   layoutDayInstances,
+  MIN_BLOCK_HEIGHT_FOR_TIME_PX,
+  nowLineTopPercent,
   SCHEDULE_BODY_HEIGHT_PX,
-  SCHEDULE_DAY_END_MINUTES,
-  SCHEDULE_DAY_START_MINUTES,
   SCHEDULE_HOUR_COUNT,
   SCHEDULE_HOUR_HEIGHT_PX,
+  SCHEDULE_HOUR_LABELS,
   timeRangeToHeightPercent,
-  timeToMinutes,
   timeToTopPercent,
   weekdayLabel,
 } from "@/lib/schedule";
@@ -34,17 +37,6 @@ interface WeekViewProps {
   onCreateAtSlot: (date: string, startTime: string, endTime: string) => void;
 }
 
-const HOUR_LABELS = Array.from({ length: SCHEDULE_HOUR_COUNT + 1 }, (_, index) => {
-  const hour = 8 + index;
-  return `${String(hour).padStart(2, "0")}:00`;
-});
-
-const MIN_BLOCK_HEIGHT_FOR_TIME = 40;
-
-function isWithinScheduleWindow(nowMinutes: number): boolean {
-  return nowMinutes >= SCHEDULE_DAY_START_MINUTES && nowMinutes <= SCHEDULE_DAY_END_MINUTES;
-}
-
 export function WeekView({
   weekStart,
   instances,
@@ -56,17 +48,16 @@ export function WeekView({
   const weekDays = getWeekDays(weekStart);
   const grouped = groupInstancesByDate(instances);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [now, setNow] = useState(() => new Date());
+  const now = useNow();
 
   const todayInWeek = useMemo(
     () => isDateInWeek(now, weekStart),
     [now, weekStart],
   );
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const showNowLine = todayInWeek && isWithinScheduleWindow(nowMinutes);
+  const nowTopPercent = nowLineTopPercent(nowMinutes);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -74,27 +65,15 @@ export function WeekView({
       return;
     }
 
-    if (todayInWeek) {
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      if (isWithinScheduleWindow(nowMinutes)) {
-        const topPx =
-          ((nowMinutes - SCHEDULE_DAY_START_MINUTES) /
-            (SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES)) *
-          SCHEDULE_BODY_HEIGHT_PX;
-        scrollEl.scrollTop = Math.max(0, topPx - scrollEl.clientHeight / 3);
-        return;
-      }
+    if (showNowLine) {
+      const topPx =
+        (nowTopPercent / 100) * SCHEDULE_BODY_HEIGHT_PX;
+      scrollEl.scrollTop = Math.max(0, topPx - scrollEl.clientHeight / 3);
+      return;
     }
 
     scrollEl.scrollTop = 0;
-  }, [weekStart, todayInWeek, now]);
-
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const showNowLine = todayInWeek && isWithinScheduleWindow(nowMinutes);
-  const nowTopPercent =
-    ((nowMinutes - SCHEDULE_DAY_START_MINUTES) /
-      (SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES)) *
-    100;
+  }, [weekStart, showNowLine, nowTopPercent]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
@@ -110,9 +89,9 @@ export function WeekView({
               <div
                 key={dateKey}
                 className={cn(
-                  "border-r px-2 py-2 text-center last:border-r-0",
-                  today && "bg-accent/5",
-                  selected && "bg-accent/10",
+                    "border-r px-2 py-2 text-center last:border-r-0",
+                    today && "bg-accent/10",
+                    selected && "bg-accent/15",
                 )}
               >
                 <button
@@ -152,7 +131,7 @@ export function WeekView({
             className="relative w-14 shrink-0 border-r bg-surface"
             style={{ height: SCHEDULE_BODY_HEIGHT_PX }}
           >
-            {HOUR_LABELS.slice(0, -1).map((label, index) => (
+            {SCHEDULE_HOUR_LABELS.slice(0, -1).map((label, index) => (
               <div
                 key={label}
                 className="absolute right-2 -translate-y-1/2 text-xs text-muted"
@@ -165,7 +144,7 @@ export function WeekView({
               className="absolute right-2 -translate-y-1/2 text-xs text-muted"
               style={{ top: SCHEDULE_BODY_HEIGHT_PX }}
             >
-              {HOUR_LABELS[HOUR_LABELS.length - 1]}
+              {SCHEDULE_HOUR_LABELS[SCHEDULE_HOUR_LABELS.length - 1]}
             </div>
           </div>
 
@@ -182,8 +161,8 @@ export function WeekView({
                   key={dateKey}
                   className={cn(
                     "relative cursor-pointer border-r last:border-r-0",
-                    today && "bg-accent/[0.04]",
-                    selected && "bg-accent/[0.08]",
+                    today && "bg-accent/10",
+                    selected && "bg-accent/15",
                   )}
                   style={{ height: SCHEDULE_BODY_HEIGHT_PX }}
                   onClick={(event) => {
@@ -225,12 +204,9 @@ export function WeekView({
                       instance.startTime,
                       instance.endTime,
                     );
-                    const blockHeightPx =
-                      (timeToMinutes(instance.endTime) -
-                        timeToMinutes(instance.startTime)) *
-                      (SCHEDULE_BODY_HEIGHT_PX /
-                        (SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES));
-                    const showTime = blockHeightPx >= MIN_BLOCK_HEIGHT_FOR_TIME;
+                    const showTime =
+                      blockHeightPx(instance.startTime, instance.endTime) >=
+                      MIN_BLOCK_HEIGHT_FOR_TIME_PX;
                     const width = 100 / columnCount;
                     const left = column * width;
 
