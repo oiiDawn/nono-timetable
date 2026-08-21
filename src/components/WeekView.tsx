@@ -48,6 +48,7 @@ export function WeekView({
   const weekDays = getWeekDays(weekStart);
   const grouped = groupInstancesByDate(instances);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const now = useNow();
 
   const todayInWeek = useMemo(
@@ -66,8 +67,9 @@ export function WeekView({
     }
 
     if (showNowLine) {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
       const topPx =
-        (nowTopPercent / 100) * SCHEDULE_BODY_HEIGHT_PX;
+        headerHeight + (nowTopPercent / 100) * SCHEDULE_BODY_HEIGHT_PX;
       scrollEl.scrollTop = Math.max(0, topPx - scrollEl.clientHeight / 3);
       return;
     }
@@ -77,55 +79,57 @@ export function WeekView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
-      <div className="flex shrink-0 border-b bg-surface">
-        <div className="w-14 shrink-0 border-r" />
-        <div className="grid min-w-0 flex-1 grid-cols-7">
-          {weekDays.map((day) => {
-            const dateKey = formatDate(day);
-            const selected = selectedDate === dateKey;
-            const today = isToday(day);
-
-            return (
-              <div
-                key={dateKey}
-                className={cn(
-                    "border-r px-2 py-2 text-center last:border-r-0",
-                    today && "bg-accent/10",
-                    selected && "bg-accent/15",
-                )}
-              >
-                <button
-                  type="button"
-                  className="w-full"
-                  onClick={() => onSelectDate(dateKey)}
-                >
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      today ? "text-accent" : "text-foreground",
-                    )}
-                  >
-                    {weekdayLabel(day)}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-xs",
-                      today ? "text-accent/80" : "text-muted",
-                    )}
-                  >
-                    {day.getMonth() + 1}月{day.getDate()}日
-                  </p>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
+        <div
+          ref={headerRef}
+          className="sticky top-0 z-30 flex border-b bg-surface"
+        >
+          <div className="w-14 shrink-0 border-r" />
+          <div className="grid min-w-0 flex-1 grid-cols-7">
+            {weekDays.map((day) => {
+              const dateKey = formatDate(day);
+              const selected = selectedDate === dateKey;
+              const today = isToday(day);
+
+              return (
+                <div
+                  key={dateKey}
+                  className={cn(
+                    "border-r px-2 py-2 text-center last:border-r-0",
+                    today && "bg-accent/10",
+                    selected && "bg-accent/15",
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="w-full"
+                    onClick={() => onSelectDate(dateKey)}
+                  >
+                    <p
+                      className={cn(
+                        "text-sm font-semibold",
+                        today ? "text-accent" : "text-foreground",
+                      )}
+                    >
+                      {weekdayLabel(day)}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs",
+                        today ? "text-accent/80" : "text-muted",
+                      )}
+                    >
+                      {day.getMonth() + 1}月{day.getDate()}日
+                    </p>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex">
           <div
             className="relative w-14 shrink-0 border-r bg-surface"

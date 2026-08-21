@@ -34,83 +34,85 @@ export function MonthView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
-      <div className="grid shrink-0 grid-cols-7 border-b bg-background-secondary">
-        {WEEKDAY_HEADERS.map((label) => (
-          <div
-            key={label}
-            className="border-r px-2 py-2 text-center text-xs font-medium text-muted last:border-r-0"
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
-        {gridDays.map((day) => {
-          const dateKey = formatDate(day);
-          const dayInstances = grouped[dateKey] ?? [];
-          const selected = selectedDate === dateKey;
-          const today = isToday(day);
-          const overflow = !isSameMonth(day, monthStart);
-
-          return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="sticky top-0 z-10 grid shrink-0 grid-cols-7 border-b bg-background-secondary">
+          {WEEKDAY_HEADERS.map((label) => (
             <div
-              key={dateKey}
-              className={cn(
-                "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
-                selected && "bg-accent/15",
-                overflow && "bg-background-secondary",
-              )}
+              key={label}
+              className="border-r px-2 py-2 text-center text-xs font-medium text-muted last:border-r-0"
             >
-              <div className="px-2 pt-1">
-                <button
-                  type="button"
-                  className={cn(
-                    "inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium",
-                    today
-                      ? "bg-accent text-accent-foreground"
-                      : overflow
-                        ? "text-muted"
-                        : "text-foreground hover:bg-default",
-                  )}
-                  onClick={() => onSelectDate(dateKey)}
-                >
-                  {day.getDate()}
-                </button>
-              </div>
-
-              <div
-                className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-1"
-                onClick={() => {
-                  onSelectDate(dateKey);
-                  onCreateOnDate(dateKey);
-                }}
-              >
-                {dayInstances.map((instance) => (
-                  <button
-                    key={`${instance.ruleId}-${instance.originalDate}`}
-                    type="button"
-                    className="truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight border border-accent/25 bg-accent-soft hover:bg-accent-soft-hover"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectDate(dateKey);
-                      onSelectLesson(instance);
-                    }}
-                  >
-                    <span className="font-medium">{instance.title}</span>
-                    <span className="ml-1 text-[10px] text-muted">
-                      {instance.startTime}
-                    </span>
-                    <RecurringMark
-                      instance={instance}
-                      className="ml-1 inline-flex align-middle text-muted"
-                    />
-                  </button>
-                ))}
-              </div>
+              {label}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
+          {gridDays.map((day) => {
+            const dateKey = formatDate(day);
+            const dayInstances = grouped[dateKey] ?? [];
+            const selected = selectedDate === dateKey;
+            const today = isToday(day);
+            const overflow = !isSameMonth(day, monthStart);
+
+            return (
+              <div
+                key={dateKey}
+                className={cn(
+                  "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
+                  selected && "bg-accent/15",
+                  overflow && "bg-background-secondary",
+                )}
+              >
+                <div className="px-2 pt-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium",
+                      today
+                        ? "bg-accent text-accent-foreground"
+                        : overflow
+                          ? "text-muted"
+                          : "text-foreground hover:bg-default",
+                    )}
+                    onClick={() => onSelectDate(dateKey)}
+                  >
+                    {day.getDate()}
+                  </button>
+                </div>
+
+                <div
+                  className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:w-0"
+                  onClick={() => {
+                    onSelectDate(dateKey);
+                    onCreateOnDate(dateKey);
+                  }}
+                >
+                  {dayInstances.map((instance) => (
+                    <button
+                      key={`${instance.ruleId}-${instance.originalDate}`}
+                      type="button"
+                      className="truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight border border-accent/25 bg-accent-soft hover:bg-accent-soft-hover"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectDate(dateKey);
+                        onSelectLesson(instance);
+                      }}
+                    >
+                      <span className="font-medium">{instance.title}</span>
+                      <span className="ml-1 text-[10px] text-muted">
+                        {instance.startTime}
+                      </span>
+                      <RecurringMark
+                        instance={instance}
+                        className="ml-1 inline-flex align-middle text-muted"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
