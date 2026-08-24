@@ -1,8 +1,4 @@
-import {
-  createHmac,
-  scryptSync,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHmac, scryptSync, timingSafeEqual } from "node:crypto";
 import { RequestError } from "./http.js";
 
 const COOKIE_NAME = "nono_session";
@@ -25,18 +21,13 @@ function sign(payload: string): string {
   if (Buffer.byteLength(secret) < 32) {
     throw new Error("SESSION_SECRET must be at least 32 bytes");
   }
-  return createHmac("sha256", secret)
-    .update(payload)
-    .digest("base64url");
+  return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
 function safeEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length &&
-    timingSafeEqual(leftBuffer, rightBuffer)
-  );
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 export function verifyPassword(password: string): boolean {
@@ -49,9 +40,7 @@ export function verifyPassword(password: string): boolean {
 }
 
 export function createSessionCookie(request: Request): string {
-  const payload = encode(
-    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS }),
-  );
+  const payload = encode(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS }));
   const token = `${payload}.${sign(payload)}`;
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${COOKIE_NAME}=${token}; Path=/; HttpOnly${secure}; SameSite=Strict; Max-Age=${SESSION_SECONDS}`;
@@ -79,9 +68,9 @@ export function isAuthenticated(request: Request): boolean {
   if (!payload || !signature || !safeEqual(sign(payload), signature)) return false;
 
   try {
-    const session = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    ) as { exp?: unknown };
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      exp?: unknown;
+    };
     return typeof session.exp === "number" && session.exp > Date.now() / 1000;
   } catch {
     return false;

@@ -31,9 +31,7 @@ function utcDateTime(value: string): string {
 function shanghaiUntil(date: string, time: string): string {
   const [year, month, day] = date.split("-").map(Number);
   const [hour, minute] = time.split(":").map(Number);
-  return utcDateTime(
-    new Date(Date.UTC(year, month - 1, day, hour - 8, minute)).toISOString(),
-  );
+  return utcDateTime(new Date(Date.UTC(year, month - 1, day, hour - 8, minute)).toISOString());
 }
 
 function foldLine(line: string): string {
@@ -127,27 +125,16 @@ export function generateCalendar(rules: LessonRule[]): string {
     const rrule = recurrence(rule);
     if (rrule) lines.push(rrule);
     for (const date of rule.repeat?.excludedDates ?? []) {
-      lines.push(
-        `EXDATE;TZID=Asia/Shanghai:${localDateTime(date, rule.startTime)}`,
-      );
+      lines.push(`EXDATE;TZID=Asia/Shanghai:${localDateTime(date, rule.startTime)}`);
     }
     lines.push("STATUS:CONFIRMED", "END:VEVENT");
 
-    for (const [originalDate, exception] of Object.entries(
-      rule.repeat?.exceptions ?? {},
-    )) {
-      appendEvent(
-        lines,
-        rule,
-        exception.date,
-        exception.startTime,
-        exception.endTime,
-        {
-          recurrenceId: originalDate,
-          title: exception.title,
-          notes: exception.notes,
-        },
-      );
+    for (const [originalDate, exception] of Object.entries(rule.repeat?.exceptions ?? {})) {
+      appendEvent(lines, rule, exception.date, exception.startTime, exception.endTime, {
+        recurrenceId: originalDate,
+        title: exception.title,
+        notes: exception.notes,
+      });
       lines.push("STATUS:CONFIRMED", "END:VEVENT");
     }
   }

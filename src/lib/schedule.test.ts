@@ -1,10 +1,4 @@
-import {
-  addDays,
-  formatDate,
-  isSameMonth,
-  parseDate,
-  startOfMonth,
-} from "@/lib/dates";
+import { addDays, formatDate, isSameMonth, parseDate, startOfMonth } from "@/lib/dates";
 import { describe, expect, it } from "vitest";
 import {
   expandRuleOccurrences,
@@ -58,17 +52,9 @@ describe("schedule", () => {
 
     const rangeStart = parseDate("2026-07-06");
     const rangeEnd = addDays(rangeStart, 14);
-    const instances = expandRuleOccurrences(
-      repeatingRule,
-      rangeStart,
-      rangeEnd,
-    );
+    const instances = expandRuleOccurrences(repeatingRule, rangeStart, rangeEnd);
 
-    expect(instances.map((item) => item.date)).toEqual([
-      "2026-07-06",
-      "2026-07-08",
-      "2026-07-10",
-    ]);
+    expect(instances.map((item) => item.date)).toEqual(["2026-07-06", "2026-07-08", "2026-07-10"]);
   });
 
   it("overrides only the selected occurrence time", () => {
@@ -232,12 +218,7 @@ describe("schedule", () => {
     const startOptions = getScheduleTimeOptions();
     const endOptions = getEndTimeOptions("09:00");
 
-    expect(startOptions.slice(0, 4)).toEqual([
-      "08:00",
-      "08:05",
-      "08:10",
-      "08:15",
-    ]);
+    expect(startOptions.slice(0, 4)).toEqual(["08:00", "08:05", "08:10", "08:15"]);
     expect(startOptions.at(-1)).toBe("20:00");
     expect(endOptions.slice(0, 3)).toEqual(["09:05", "09:10", "09:15"]);
   });

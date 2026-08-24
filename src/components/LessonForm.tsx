@@ -31,12 +31,7 @@ import {
   getScheduleTimeOptions,
   validateFormValues,
 } from "@/lib/schedule";
-import type {
-  ConflictInfo,
-  LessonFormValues,
-  RepeatPreset,
-  Weekday,
-} from "@/types/lesson";
+import type { ConflictInfo, LessonFormValues, RepeatPreset, Weekday } from "@/types/lesson";
 
 interface LessonFormProps {
   open: boolean;
@@ -110,10 +105,7 @@ export function LessonForm({
   const [values, setValues] = useState(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
   const startTimeOptions = useMemo(() => getScheduleTimeOptions(), []);
-  const endTimeOptions = useMemo(
-    () => getEndTimeOptions(values.startTime),
-    [values.startTime],
-  );
+  const endTimeOptions = useMemo(() => getEndTimeOptions(values.startTime), [values.startTime]);
   const startWeekday = weekdayFromDate(values.startDate);
   const showCustom = values.repeatPreset === "custom";
   const showEnd = values.repeatPreset !== "none";
@@ -281,11 +273,7 @@ export function LessonForm({
                   <Select.Popover>
                     <ListBox>
                       {REPEAT_PRESETS.map((preset) => (
-                        <ListBox.Item
-                          key={preset.id}
-                          id={preset.id}
-                          textValue={preset.label}
-                        >
+                        <ListBox.Item key={preset.id} id={preset.id} textValue={preset.label}>
                           {preset.label}
                           <ListBox.ItemIndicator />
                         </ListBox.Item>
@@ -348,11 +336,7 @@ export function LessonForm({
                           }}
                         >
                           {WEEKDAYS.map((day, index) => (
-                            <ToggleButton
-                              key={day}
-                              id={day}
-                              isDisabled={day === startWeekday}
-                            >
+                            <ToggleButton key={day} id={day} isDisabled={day === startWeekday}>
                               {index > 0 ? <ToggleButtonGroup.Separator /> : null}
                               {WEEKDAY_LABELS[day]}
                             </ToggleButton>
@@ -371,46 +355,60 @@ export function LessonForm({
                   >
                     <Label>结束方式</Label>
                     <div className="flex flex-col gap-3 pt-1">
-                      <Radio value="count">
-                        <Radio.Content>
-                          <Radio.Control>
-                            <Radio.Indicator />
-                          </Radio.Control>
-                          <span className="flex items-center gap-2 text-sm">
-                            重复
-                            <TextField
-                              aria-label="重复次数"
-                              type="number"
-                              className="w-20"
-                              isDisabled={values.endType !== "count"}
-                              value={String(values.endCount)}
-                              onChange={(value) => update("endCount", Number(value) || 1)}
-                            >
-                              <Input min={1} />
-                            </TextField>
-                            次
-                          </span>
-                        </Radio.Content>
-                      </Radio>
-                      <Radio value="date">
-                        <Radio.Content>
-                          <Radio.Control>
-                            <Radio.Indicator />
-                          </Radio.Control>
-                          <span className="flex items-center gap-2 text-sm">
-                            结束于
-                            <TextField
-                              aria-label="结束日期"
-                              type="date"
-                              isDisabled={values.endType !== "date"}
-                              value={values.endDate}
-                              onChange={(value) => update("endDate", value)}
-                            >
-                              <Input />
-                            </TextField>
-                          </span>
-                        </Radio.Content>
-                      </Radio>
+                      <div className="flex items-center gap-2">
+                        <Radio value="count">
+                          <Radio.Content>
+                            <Radio.Control>
+                              <Radio.Indicator />
+                            </Radio.Control>
+                            <span className="text-sm">重复</span>
+                          </Radio.Content>
+                        </Radio>
+                        <TextField
+                          aria-label="重复次数"
+                          type="number"
+                          className="w-20"
+                          value={String(values.endCount)}
+                          onFocus={() => update("endType", "count")}
+                          onChange={(value) => {
+                            setValidationError(null);
+                            setValues((current) => ({
+                              ...current,
+                              endType: "count",
+                              endCount: Number(value) || 1,
+                            }));
+                          }}
+                        >
+                          <Input min={1} />
+                        </TextField>
+                        <span className="text-sm">次</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Radio value="date">
+                          <Radio.Content>
+                            <Radio.Control>
+                              <Radio.Indicator />
+                            </Radio.Control>
+                            <span className="text-sm">结束于</span>
+                          </Radio.Content>
+                        </Radio>
+                        <TextField
+                          aria-label="结束日期"
+                          type="date"
+                          value={values.endDate}
+                          onFocus={() => update("endType", "date")}
+                          onChange={(value) => {
+                            setValidationError(null);
+                            setValues((current) => ({
+                              ...current,
+                              endType: "date",
+                              endDate: value,
+                            }));
+                          }}
+                        >
+                          <Input />
+                        </TextField>
+                      </div>
                     </div>
                   </RadioGroup>
                 ) : null}
@@ -419,9 +417,7 @@ export function LessonForm({
                   <Alert status="warning">
                     <Alert.Indicator />
                     <Alert.Content>
-                      <Alert.Title>
-                        检测到 {conflicts.length} 处时间冲突，仍可保存。
-                      </Alert.Title>
+                      <Alert.Title>检测到 {conflicts.length} 处时间冲突，仍可保存。</Alert.Title>
                       <Alert.Description>
                         <ul className="mt-1 space-y-1">
                           {conflicts.slice(0, 3).map((conflict) => (
@@ -429,8 +425,7 @@ export function LessonForm({
                               key={`${conflict.instance.originalDate}-${conflict.instance.startTime}`}
                             >
                               {conflict.instance.date} {conflict.instance.startTime} 与{" "}
-                              {conflict.conflictsWith.map((item) => item.title).join("、")}{" "}
-                              重叠
+                              {conflict.conflictsWith.map((item) => item.title).join("、")} 重叠
                             </li>
                           ))}
                         </ul>

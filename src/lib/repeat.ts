@@ -13,15 +13,7 @@ import type {
 
 export const DEFAULT_REPEAT_COUNT = 5;
 export const WEEKDAYS: Weekday[] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
-export const JS_DAY_TO_WEEKDAY: Weekday[] = [
-  "SU",
-  "MO",
-  "TU",
-  "WE",
-  "TH",
-  "FR",
-  "SA",
-];
+export const JS_DAY_TO_WEEKDAY: Weekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
 export const WEEKDAY_LABELS: Record<Weekday, string> = {
   MO: "周一",
@@ -45,21 +37,14 @@ export function uniqueWeekdays(days: Weekday[]): Weekday[] {
   return WEEKDAYS.filter((day) => days.includes(day));
 }
 
-export function ensureStartWeekday(
-  startDate: string,
-  days: Weekday[],
-): Weekday[] {
+export function ensureStartWeekday(startDate: string, days: Weekday[]): Weekday[] {
   return uniqueWeekdays([...days, weekdayFromDate(startDate)]);
 }
 
 function parseException(value: unknown): OccurrenceException | null {
   if (!isRecord(value)) return null;
   const { date, startTime, endTime, title, notes } = value;
-  if (
-    typeof date !== "string" ||
-    typeof startTime !== "string" ||
-    typeof endTime !== "string"
-  ) {
+  if (typeof date !== "string" || typeof startTime !== "string" || typeof endTime !== "string") {
     return null;
   }
   const exception: OccurrenceException = { date, startTime, endTime };
@@ -83,8 +68,7 @@ function parseExceptions(value: unknown): RepeatRule["exceptions"] {
 function parseExcludedDates(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const dates = value.filter(
-    (item): item is string =>
-      typeof item === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item),
+    (item): item is string => typeof item === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item),
   );
   return dates.length > 0 ? [...new Set(dates)].sort() : undefined;
 }
@@ -94,12 +78,8 @@ function parseLegacyTimeOverrides(value: unknown): RepeatRule["exceptions"] {
   const entries: [string, OccurrenceException][] = [];
   for (const [date, raw] of Object.entries(value)) {
     if (!isRecord(raw)) continue;
-    if (typeof raw.startTime !== "string" || typeof raw.endTime !== "string")
-      continue;
-    entries.push([
-      date,
-      { date, startTime: raw.startTime, endTime: raw.endTime },
-    ]);
+    if (typeof raw.startTime !== "string" || typeof raw.endTime !== "string") continue;
+    entries.push([date, { date, startTime: raw.startTime, endTime: raw.endTime }]);
   }
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
@@ -108,27 +88,18 @@ export function normalizeRepeat(value: unknown): RepeatRule | null {
   if (value === null || value === undefined) return null;
   if (!isRecord(value)) return null;
 
-  const endType =
-    value.endType === "date"
-      ? "date"
-      : value.endType === "count"
-        ? "count"
-        : null;
+  const endType = value.endType === "date" ? "date" : value.endType === "count" ? "count" : null;
   if (!endType) return null;
 
   const intervalRaw = value.interval ?? value.intervalDays;
   const interval =
-    typeof intervalRaw === "number" && intervalRaw >= 1
-      ? Math.floor(intervalRaw)
-      : 1;
+    typeof intervalRaw === "number" && intervalRaw >= 1 ? Math.floor(intervalRaw) : 1;
   const freq: RepeatFreq = value.freq === "weekly" ? "weekly" : "daily";
 
   let byWeekdays: Weekday[] | undefined;
   if (Array.isArray(value.byWeekdays)) {
     byWeekdays = uniqueWeekdays(
-      value.byWeekdays.filter((item): item is Weekday =>
-        WEEKDAYS.includes(item as Weekday),
-      ),
+      value.byWeekdays.filter((item): item is Weekday => WEEKDAYS.includes(item as Weekday)),
     );
   }
 
@@ -144,14 +115,11 @@ export function normalizeRepeat(value: unknown): RepeatRule | null {
     endType,
   };
   if (freq === "weekly") {
-    repeat.byWeekdays =
-      byWeekdays && byWeekdays.length > 0 ? byWeekdays : undefined;
+    repeat.byWeekdays = byWeekdays && byWeekdays.length > 0 ? byWeekdays : undefined;
   }
   if (endType === "count") {
     const endCount =
-      typeof value.endCount === "number" && value.endCount >= 1
-        ? Math.floor(value.endCount)
-        : 1;
+      typeof value.endCount === "number" && value.endCount >= 1 ? Math.floor(value.endCount) : 1;
     repeat.endCount = endCount;
   } else if (typeof value.endDate === "string") {
     repeat.endDate = value.endDate;
@@ -169,10 +137,7 @@ export function normalizeRule(rule: LessonRule): LessonRule {
   const repeat = normalizeRepeat(rule.repeat);
   if (!repeat) return { ...rule, repeat: null };
   if (repeat.freq === "weekly") {
-    repeat.byWeekdays = ensureStartWeekday(
-      rule.startDate,
-      repeat.byWeekdays ?? [],
-    );
+    repeat.byWeekdays = ensureStartWeekday(rule.startDate, repeat.byWeekdays ?? []);
   }
   return { ...rule, repeat };
 }
@@ -191,10 +156,7 @@ function isWithinRepeatBounds(
   return true;
 }
 
-export function listGeneratedOccurrenceDates(
-  rule: LessonRule,
-  limit = 10_000,
-): string[] {
+export function listGeneratedOccurrenceDates(rule: LessonRule, limit = 10_000): string[] {
   const normalized = normalizeRule(rule);
   if (!normalized.repeat) return [normalized.startDate];
 
@@ -213,9 +175,7 @@ export function listGeneratedOccurrenceDates(
     return dates;
   }
 
-  const weekdays = new Set(
-    ensureStartWeekday(normalized.startDate, repeat.byWeekdays ?? []),
-  );
+  const weekdays = new Set(ensureStartWeekday(normalized.startDate, repeat.byWeekdays ?? []));
   const startWeekMonday = getWeekStart(start);
   let weekIndex = 0;
   let occurrenceIndex = 0;
@@ -240,27 +200,16 @@ export function listGeneratedOccurrenceDates(
   return dates;
 }
 
-export function isGeneratedOccurrenceDate(
-  rule: LessonRule,
-  date: string,
-): boolean {
+export function isGeneratedOccurrenceDate(rule: LessonRule, date: string): boolean {
   return listGeneratedOccurrenceDates(rule).includes(date);
 }
 
-export function isFirstGeneratedOccurrence(
-  rule: LessonRule,
-  originalDate: string,
-): boolean {
+export function isFirstGeneratedOccurrence(rule: LessonRule, originalDate: string): boolean {
   return listGeneratedOccurrenceDates(rule)[0] === originalDate;
 }
 
-export function remainingOccurrenceCount(
-  rule: LessonRule,
-  fromOriginalDate: string,
-): number {
-  return listGeneratedOccurrenceDates(rule).filter(
-    (date) => date >= fromOriginalDate,
-  ).length;
+export function remainingOccurrenceCount(rule: LessonRule, fromOriginalDate: string): number {
+  return listGeneratedOccurrenceDates(rule).filter((date) => date >= fromOriginalDate).length;
 }
 
 export function repeatPresetOf(rule: LessonRule): RepeatPreset {
@@ -287,9 +236,7 @@ function compactExceptions(
   return keys.length > 0 ? exceptions : undefined;
 }
 
-function compactExcluded(
-  dates: string[] | undefined,
-): RepeatRule["excludedDates"] {
+function compactExcluded(dates: string[] | undefined): RepeatRule["excludedDates"] {
   if (!dates || dates.length === 0) return undefined;
   return [...new Set(dates)].sort();
 }
@@ -320,10 +267,7 @@ export function exceptionMatchesSeries(
   );
 }
 
-function storedException(
-  rule: LessonRule,
-  patch: OccurrenceException,
-): OccurrenceException {
+function storedException(rule: LessonRule, patch: OccurrenceException): OccurrenceException {
   const exception: OccurrenceException = {
     date: patch.date,
     startTime: patch.startTime,
@@ -344,10 +288,7 @@ export function setOccurrenceException(
   patch: OccurrenceException,
 ): LessonRule {
   const normalized = normalizeRule(rule);
-  if (
-    !normalized.repeat ||
-    !isGeneratedOccurrenceDate(normalized, originalDate)
-  ) {
+  if (!normalized.repeat || !isGeneratedOccurrenceDate(normalized, originalDate)) {
     return normalized;
   }
   const stored = storedException(normalized, patch);
@@ -367,23 +308,14 @@ export function setOccurrenceException(
   });
 }
 
-export function excludeOccurrence(
-  rule: LessonRule,
-  originalDate: string,
-): LessonRule {
+export function excludeOccurrence(rule: LessonRule, originalDate: string): LessonRule {
   const normalized = normalizeRule(rule);
-  if (
-    !normalized.repeat ||
-    !isGeneratedOccurrenceDate(normalized, originalDate)
-  ) {
+  if (!normalized.repeat || !isGeneratedOccurrenceDate(normalized, originalDate)) {
     return normalized;
   }
   const exceptions = { ...(normalized.repeat.exceptions ?? {}) };
   delete exceptions[originalDate];
-  const excludedDates = [
-    ...(normalized.repeat.excludedDates ?? []),
-    originalDate,
-  ];
+  const excludedDates = [...(normalized.repeat.excludedDates ?? []), originalDate];
   return withRepeat(normalized, {
     ...normalized.repeat,
     exceptions,
@@ -401,9 +333,7 @@ export function reconcileExceptions(rule: LessonRule): {
   const generated = new Set(listGeneratedOccurrenceDates(normalized));
   const invalidDates: string[] = [];
   const exceptions: Record<string, OccurrenceException> = {};
-  for (const [originalDate, exception] of Object.entries(
-    normalized.repeat.exceptions ?? {},
-  )) {
+  for (const [originalDate, exception] of Object.entries(normalized.repeat.exceptions ?? {})) {
     if (
       !generated.has(originalDate) ||
       exceptionMatchesSeries(normalized, originalDate, exception)
@@ -413,13 +343,11 @@ export function reconcileExceptions(rule: LessonRule): {
     }
     exceptions[originalDate] = exception;
   }
-  const excludedDates = (normalized.repeat.excludedDates ?? []).filter(
-    (date) => {
-      if (generated.has(date)) return true;
-      invalidDates.push(date);
-      return false;
-    },
-  );
+  const excludedDates = (normalized.repeat.excludedDates ?? []).filter((date) => {
+    if (generated.has(date)) return true;
+    invalidDates.push(date);
+    return false;
+  });
 
   return {
     invalidDates,
@@ -431,10 +359,7 @@ export function reconcileExceptions(rule: LessonRule): {
   };
 }
 
-export function truncateRuleBefore(
-  rule: LessonRule,
-  originalDate: string,
-): LessonRule | null {
+export function truncateRuleBefore(rule: LessonRule, originalDate: string): LessonRule | null {
   const normalized = normalizeRule(rule);
   if (!normalized.repeat) return null;
   const generated = listGeneratedOccurrenceDates(normalized);
@@ -445,13 +370,9 @@ export function truncateRuleBefore(
   const nextRepeat: RepeatRule = {
     ...normalized.repeat,
     exceptions: Object.fromEntries(
-      Object.entries(normalized.repeat.exceptions ?? {}).filter(
-        ([date]) => date < originalDate,
-      ),
+      Object.entries(normalized.repeat.exceptions ?? {}).filter(([date]) => date < originalDate),
     ),
-    excludedDates: (normalized.repeat.excludedDates ?? []).filter(
-      (date) => date < originalDate,
-    ),
+    excludedDates: (normalized.repeat.excludedDates ?? []).filter((date) => date < originalDate),
   };
   if (normalized.repeat.endType === "count") {
     nextRepeat.endCount = kept.length;
@@ -475,9 +396,7 @@ export function splitSeries(
 
   const normalized = normalizeRule(rule);
   const movedExceptions = Object.fromEntries(
-    Object.entries(normalized.repeat?.exceptions ?? {}).filter(
-      ([date]) => date > originalDate,
-    ),
+    Object.entries(normalized.repeat?.exceptions ?? {}).filter(([date]) => date > originalDate),
   );
   const movedExcluded = (normalized.repeat?.excludedDates ?? []).filter(
     (date) => date > originalDate,
@@ -503,17 +422,12 @@ export function splitSeries(
 
 export function applyAllEventsEdit(
   rule: LessonRule,
-  values: Pick<
-    LessonRule,
-    "title" | "startDate" | "startTime" | "endTime" | "notes" | "repeat"
-  >,
+  values: Pick<LessonRule, "title" | "startDate" | "startTime" | "endTime" | "notes" | "repeat">,
   originalDate: string,
 ): { rule: LessonRule; invalidDates: string[] } {
   const normalized = normalizeRule(rule);
   const first = isFirstGeneratedOccurrence(normalized, originalDate);
-  const movedFirstDate = first
-    ? normalized.repeat?.exceptions?.[originalDate]?.date
-    : undefined;
+  const movedFirstDate = first ? normalized.repeat?.exceptions?.[originalDate]?.date : undefined;
   const next: LessonRule = {
     ...normalized,
     title: values.title,
@@ -521,9 +435,7 @@ export function applyAllEventsEdit(
     endTime: values.endTime,
     notes: values.notes,
     startDate:
-      first && values.startDate !== movedFirstDate
-        ? values.startDate
-        : normalized.startDate,
+      first && values.startDate !== movedFirstDate ? values.startDate : normalized.startDate,
     repeat: values.repeat
       ? {
           ...values.repeat,
@@ -534,10 +446,7 @@ export function applyAllEventsEdit(
     updatedAt: new Date().toISOString(),
   };
   if (next.repeat?.freq === "weekly") {
-    next.repeat.byWeekdays = ensureStartWeekday(
-      next.startDate,
-      next.repeat.byWeekdays ?? [],
-    );
+    next.repeat.byWeekdays = ensureStartWeekday(next.startDate, next.repeat.byWeekdays ?? []);
   }
   return reconcileExceptions(next);
 }

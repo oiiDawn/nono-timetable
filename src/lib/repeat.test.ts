@@ -10,11 +10,7 @@ import {
   splitSeries,
   truncateRuleBefore,
 } from "@/lib/repeat";
-import {
-  expandRuleOccurrences,
-  findConflicts,
-  parseDate,
-} from "@/lib/schedule";
+import { expandRuleOccurrences, findConflicts, parseDate } from "@/lib/schedule";
 import type { LessonRule } from "@/types/lesson";
 
 const baseRule: LessonRule = {
@@ -158,14 +154,8 @@ describe("repeat", () => {
       },
     });
 
-    expect(listGeneratedOccurrenceDates(split.previous)).toEqual([
-      "2026-07-06",
-      "2026-07-08",
-    ]);
-    expect(listGeneratedOccurrenceDates(split.next)).toEqual([
-      "2026-07-10",
-      "2026-07-12",
-    ]);
+    expect(listGeneratedOccurrenceDates(split.previous)).toEqual(["2026-07-06", "2026-07-08"]);
+    expect(listGeneratedOccurrenceDates(split.next)).toEqual(["2026-07-10", "2026-07-12"]);
     expect(split.next.startTime).toBe("14:00");
     expect(split.next.repeat?.exceptions?.["2026-07-10"]).toBeUndefined();
   });

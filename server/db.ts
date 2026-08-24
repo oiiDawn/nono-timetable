@@ -81,9 +81,7 @@ export async function listLessons(): Promise<LessonRule[]> {
   return rows.map(mapRow);
 }
 
-export async function createLesson(
-  rule: LessonRule,
-): Promise<LessonRule | null> {
+export async function createLesson(rule: LessonRule): Promise<LessonRule | null> {
   await ensureSchema();
   const rows = (await sql().query(
     `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule)
@@ -103,9 +101,7 @@ export async function createLesson(
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-export async function updateLesson(
-  rule: LessonRule,
-): Promise<LessonRule | null> {
+export async function updateLesson(rule: LessonRule): Promise<LessonRule | null> {
   await ensureSchema();
   const rows = (await sql().query(
     `UPDATE lessons
@@ -127,10 +123,7 @@ export async function updateLesson(
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-export async function deleteLesson(
-  id: string,
-  version: number,
-): Promise<boolean> {
+export async function deleteLesson(id: string, version: number): Promise<boolean> {
   await ensureSchema();
   const rows = (await sql().query(
     "DELETE FROM lessons WHERE id = $1 AND version = $2 RETURNING id",

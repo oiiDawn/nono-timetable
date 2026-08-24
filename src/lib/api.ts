@@ -17,17 +17,14 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     error?: unknown;
   } | null;
   if (!response.ok) {
-    const message =
-      typeof body?.error === "string" ? body.error : "请求失败，请稍后重试";
+    const message = typeof body?.error === "string" ? body.error : "请求失败，请稍后重试";
     throw new ApiError(response.status, message);
   }
   return body as T;
 }
 
 export async function getSession(): Promise<boolean> {
-  const result = await requestJson<{ authenticated: boolean }>(
-    "/api/auth/session",
-  );
+  const result = await requestJson<{ authenticated: boolean }>("/api/auth/session");
   return result.authenticated;
 }
 

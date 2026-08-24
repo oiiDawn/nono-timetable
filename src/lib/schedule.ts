@@ -1,12 +1,6 @@
 /** Calendar layout, instance expansion, conflicts, and lesson form conversion. */
 
-import {
-  addDays,
-  addMonths,
-  formatDate,
-  getWeekStart,
-  isSameDay,
-} from "@/lib/dates";
+import { addDays, addMonths, formatDate, getWeekStart, isSameDay } from "@/lib/dates";
 import { createId } from "@/lib/utils";
 import {
   DEFAULT_REPEAT_COUNT,
@@ -16,12 +10,7 @@ import {
   repeatPresetOf,
   weekdayFromDate,
 } from "@/lib/repeat";
-import type {
-  ConflictInfo,
-  LessonFormValues,
-  LessonInstance,
-  LessonRule,
-} from "@/types/lesson";
+import type { ConflictInfo, LessonFormValues, LessonInstance, LessonRule } from "@/types/lesson";
 
 export { formatDate, getWeekStart, parseDate, startOfMonth } from "@/lib/dates";
 
@@ -30,12 +19,10 @@ export const SCHEDULE_DAY_END = "22:00";
 export const SCHEDULE_DAY_START_MINUTES = 8 * 60;
 export const SCHEDULE_DAY_END_MINUTES = 22 * 60;
 export const DEFAULT_LESSON_DURATION_MINUTES = 2 * 60;
-export const SCHEDULE_DAY_TOTAL_MINUTES =
-  SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES;
+export const SCHEDULE_DAY_TOTAL_MINUTES = SCHEDULE_DAY_END_MINUTES - SCHEDULE_DAY_START_MINUTES;
 export const SCHEDULE_HOUR_COUNT = SCHEDULE_DAY_TOTAL_MINUTES / 60;
 export const SCHEDULE_HOUR_HEIGHT_PX = 56;
-export const SCHEDULE_BODY_HEIGHT_PX =
-  SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
+export const SCHEDULE_BODY_HEIGHT_PX = SCHEDULE_HOUR_COUNT * SCHEDULE_HOUR_HEIGHT_PX;
 export const SCHEDULE_TIME_INTERVAL_MINUTES = 5;
 export const SCHEDULE_HOUR_LABELS = Array.from(
   { length: SCHEDULE_HOUR_COUNT + 1 },
@@ -44,16 +31,11 @@ export const SCHEDULE_HOUR_LABELS = Array.from(
 export const MIN_BLOCK_HEIGHT_FOR_TIME_PX = 40;
 
 export function isWithinScheduleWindow(nowMinutes: number): boolean {
-  return (
-    nowMinutes >= SCHEDULE_DAY_START_MINUTES &&
-    nowMinutes <= SCHEDULE_DAY_END_MINUTES
-  );
+  return nowMinutes >= SCHEDULE_DAY_START_MINUTES && nowMinutes <= SCHEDULE_DAY_END_MINUTES;
 }
 
 export function nowLineTopPercent(nowMinutes: number): number {
-  return (
-    ((nowMinutes - SCHEDULE_DAY_START_MINUTES) / SCHEDULE_DAY_TOTAL_MINUTES) * 100
-  );
+  return ((nowMinutes - SCHEDULE_DAY_START_MINUTES) / SCHEDULE_DAY_TOTAL_MINUTES) * 100;
 }
 
 export function blockHeightPx(startTime: string, endTime: string): number {
@@ -69,21 +51,11 @@ export const VIEW_MODE_STORAGE_KEY = "nono-timetable-view-mode";
 
 export type CalendarViewMode = "month" | "week";
 
-export const WEEKDAY_HEADERS = [
-  "周一",
-  "周二",
-  "周三",
-  "周四",
-  "周五",
-  "周六",
-  "周日",
-] as const;
+export const WEEKDAY_HEADERS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
 
 export function getMonthGridDays(monthStart: Date): Date[] {
   const gridStart = getWeekStart(monthStart);
-  return Array.from({ length: MONTH_GRID_DAY_COUNT }, (_, index) =>
-    addDays(gridStart, index),
-  );
+  return Array.from({ length: MONTH_GRID_DAY_COUNT }, (_, index) => addDays(gridStart, index));
 }
 
 export function getMonthGridRange(monthStart: Date): {
@@ -103,9 +75,7 @@ export function shiftMonthStart(monthStart: Date, offset: number): Date {
 }
 
 export function loadStoredViewMode(): CalendarViewMode {
-  return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "week"
-    ? "week"
-    : "month";
+  return localStorage.getItem(VIEW_MODE_STORAGE_KEY) === "week" ? "week" : "month";
 }
 
 export function storeViewMode(mode: CalendarViewMode): void {
@@ -159,21 +129,13 @@ export function getEndTimeOptions(startTime: string): string[] {
 
 export function snapMinutesToScheduleInterval(minutes: number): number {
   const snapped =
-    Math.round(minutes / SCHEDULE_TIME_INTERVAL_MINUTES) *
-    SCHEDULE_TIME_INTERVAL_MINUTES;
-  return Math.max(
-    SCHEDULE_DAY_START_MINUTES,
-    Math.min(SCHEDULE_DAY_END_MINUTES, snapped),
-  );
+    Math.round(minutes / SCHEDULE_TIME_INTERVAL_MINUTES) * SCHEDULE_TIME_INTERVAL_MINUTES;
+  return Math.max(SCHEDULE_DAY_START_MINUTES, Math.min(SCHEDULE_DAY_END_MINUTES, snapped));
 }
 
-export function getTimeFromClickOffset(
-  offsetY: number,
-  totalHeight: number,
-): string {
+export function getTimeFromClickOffset(offsetY: number, totalHeight: number): string {
   const ratio = Math.max(0, Math.min(1, offsetY / totalHeight));
-  const minutes =
-    SCHEDULE_DAY_START_MINUTES + ratio * SCHEDULE_DAY_TOTAL_MINUTES;
+  const minutes = SCHEDULE_DAY_START_MINUTES + ratio * SCHEDULE_DAY_TOTAL_MINUTES;
   return minutesToTime(
     Math.min(
       snapMinutesToScheduleInterval(minutes),
@@ -183,28 +145,15 @@ export function getTimeFromClickOffset(
 }
 
 export function getDefaultEndTime(startTime: string): string {
-  return minutesToTime(
-    timeToMinutes(startTime) + DEFAULT_LESSON_DURATION_MINUTES,
-  );
+  return minutesToTime(timeToMinutes(startTime) + DEFAULT_LESSON_DURATION_MINUTES);
 }
 
 export function timeToTopPercent(time: string): number {
-  return (
-    ((timeToMinutes(time) - SCHEDULE_DAY_START_MINUTES) /
-      SCHEDULE_DAY_TOTAL_MINUTES) *
-    100
-  );
+  return ((timeToMinutes(time) - SCHEDULE_DAY_START_MINUTES) / SCHEDULE_DAY_TOTAL_MINUTES) * 100;
 }
 
-export function timeRangeToHeightPercent(
-  startTime: string,
-  endTime: string,
-): number {
-  return (
-    ((timeToMinutes(endTime) - timeToMinutes(startTime)) /
-      SCHEDULE_DAY_TOTAL_MINUTES) *
-    100
-  );
+export function timeRangeToHeightPercent(startTime: string, endTime: string): number {
+  return ((timeToMinutes(endTime) - timeToMinutes(startTime)) / SCHEDULE_DAY_TOTAL_MINUTES) * 100;
 }
 
 export interface LayoutedLessonInstance {
@@ -213,9 +162,7 @@ export interface LayoutedLessonInstance {
   columnCount: number;
 }
 
-export function layoutDayInstances(
-  instances: LessonInstance[],
-): LayoutedLessonInstance[] {
+export function layoutDayInstances(instances: LessonInstance[]): LayoutedLessonInstance[] {
   if (instances.length === 0) {
     return [];
   }
@@ -255,12 +202,7 @@ export function layoutDayInstances(
         const last = column[column.length - 1];
         if (
           !last ||
-          !timesOverlap(
-            instance.startTime,
-            instance.endTime,
-            last.startTime,
-            last.endTime,
-          )
+          !timesOverlap(instance.startTime, instance.endTime, last.startTime, last.endTime)
         ) {
           column.push(instance);
           placed = true;
@@ -286,17 +228,10 @@ export function layoutDayInstances(
 
 export function isDateInWeek(date: Date, weekStart: Date): boolean {
   const key = formatDate(date);
-  return (
-    key >= formatDate(weekStart) && key <= formatDate(addDays(weekStart, 6))
-  );
+  return key >= formatDate(weekStart) && key <= formatDate(addDays(weekStart, 6));
 }
 
-export function timesOverlap(
-  startA: string,
-  endA: string,
-  startB: string,
-  endB: string,
-): boolean {
+export function timesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
   const aStart = timeToMinutes(startA);
   const aEnd = timeToMinutes(endA);
   const bStart = timeToMinutes(startB);
@@ -316,10 +251,7 @@ export function expandRuleOccurrences(
   for (const originalDate of listGeneratedOccurrenceDates(normalized)) {
     if (excluded.has(originalDate)) continue;
     const instance = createInstance(normalized, originalDate);
-    if (
-      instance.date < formatDate(rangeStart) ||
-      instance.date > formatDate(rangeEnd)
-    ) {
+    if (instance.date < formatDate(rangeStart) || instance.date > formatDate(rangeEnd)) {
       continue;
     }
     instances.push(instance);
@@ -328,10 +260,7 @@ export function expandRuleOccurrences(
   return instances;
 }
 
-function createInstance(
-  rule: LessonRule,
-  originalDate: string,
-): LessonInstance {
+function createInstance(rule: LessonRule, originalDate: string): LessonInstance {
   const exception = rule.repeat?.exceptions?.[originalDate];
   return {
     ruleId: rule.id,
@@ -380,14 +309,8 @@ export function findConflicts(
   const conflictsWith = instances.filter(
     (instance) =>
       instance.date === candidate.date &&
-      (instance.ruleId !== candidate.ruleId ||
-        instance.originalDate !== candidate.originalDate) &&
-      timesOverlap(
-        candidate.startTime,
-        candidate.endTime,
-        instance.startTime,
-        instance.endTime,
-      ),
+      (instance.ruleId !== candidate.ruleId || instance.originalDate !== candidate.originalDate) &&
+      timesOverlap(candidate.startTime, candidate.endTime, instance.startTime, instance.endTime),
   );
 
   if (conflictsWith.length === 0) {
@@ -413,10 +336,7 @@ export function findConflictsForRule(
 
 export function ruleToFormValues(
   rule: LessonRule,
-  instance?: Pick<
-    LessonInstance,
-    "date" | "title" | "startTime" | "endTime" | "notes"
-  >,
+  instance?: Pick<LessonInstance, "date" | "title" | "startTime" | "endTime" | "notes">,
 ): LessonFormValues {
   const normalized = normalizeRule(rule);
   const repeat = normalized.repeat;
@@ -437,10 +357,7 @@ export function ruleToFormValues(
   };
 }
 
-export function formValuesToRule(
-  values: LessonFormValues,
-  existing?: LessonRule,
-): LessonRule {
+export function formValuesToRule(values: LessonFormValues, existing?: LessonRule): LessonRule {
   const now = new Date().toISOString();
   const repeat = repeatFromForm(values);
   if (repeat && existing?.repeat) {
@@ -488,11 +405,7 @@ export function validateFormValues(values: LessonFormValues): string | null {
     if (values.endType === "date" && !values.endDate) {
       return "请选择结束日期";
     }
-    if (
-      values.endType === "date" &&
-      values.endDate &&
-      values.endDate < values.startDate
-    ) {
+    if (values.endType === "date" && values.endDate && values.endDate < values.startDate) {
       return "结束日期不能早于开始日期";
     }
   }

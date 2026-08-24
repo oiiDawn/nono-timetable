@@ -18,8 +18,8 @@ export default {
     try {
       const url = new URL(request.url);
       const pathToken = url.pathname.match(/\/calendar\/([^/]+)\.ics$/)?.[1];
-      const token = url.searchParams.get("token") ??
-        (pathToken ? decodeURIComponent(pathToken) : "");
+      const token =
+        url.searchParams.get("token") ?? (pathToken ? decodeURIComponent(pathToken) : "");
       if (!equalToken(token, calendarFeedToken())) {
         return new Response("Not found", { status: 404 });
       }

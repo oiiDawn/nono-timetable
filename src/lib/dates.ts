@@ -12,11 +12,7 @@ export function parseDate(dateStr: string): Date {
 }
 
 export function addDays(date: Date, amount: number): Date {
-  const next = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate() + amount,
-  );
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + amount);
   return next;
 }
 

@@ -1,0 +1,23 @@
+# Dependencies and lockfiles
+node_modules
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build output
+dist
+dist-ssr
+dev-dist
+.vercel
+coverage
+
+# Local / generated
+*.local
+.env
+.env.*
+
+# Agent and scratch files
+.agents
+.scratch
+skills-lock.json
+.tmp-wayfinder-map-payload.json

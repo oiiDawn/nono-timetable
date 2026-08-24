@@ -1,10 +1,5 @@
 import { clearSessionCookie } from "../../server/auth.js";
-import {
-  handleApiError,
-  json,
-  methodNotAllowed,
-  requireSameOrigin,
-} from "../../server/http.js";
+import { handleApiError, json, methodNotAllowed, requireSameOrigin } from "../../server/http.js";
 
 export default {
   fetch(request: Request): Response {

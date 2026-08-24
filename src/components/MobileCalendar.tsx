@@ -90,7 +90,7 @@ export function MobileDayView({
               <span className="text-[10px] leading-none opacity-80">
                 {weekdayLabel(day).replace("周", "")}
               </span>
-              <span className="text-sm font-semibold leading-none">{day.getDate()}</span>
+              <span className="text-sm leading-none font-semibold">{day.getDate()}</span>
             </button>
           );
         })}
@@ -147,8 +147,7 @@ export function MobileDayView({
             const width = 100 / columnCount;
             const left = column * width;
             const showTime =
-              blockHeightPx(instance.startTime, instance.endTime) >=
-              MIN_BLOCK_HEIGHT_FOR_TIME_PX;
+              blockHeightPx(instance.startTime, instance.endTime) >= MIN_BLOCK_HEIGHT_FOR_TIME_PX;
             return (
               <button
                 key={`${instance.ruleId}-${instance.originalDate}`}
@@ -166,7 +165,7 @@ export function MobileDayView({
                   onSelectLesson(instance);
                 }}
               >
-                <p className="truncate font-medium leading-tight">{instance.title}</p>
+                <p className="truncate leading-tight font-medium">{instance.title}</p>
                 {showTime ? (
                   <p className="truncate text-[10px] text-muted">
                     {instance.startTime} - {instance.endTime}
@@ -237,9 +236,7 @@ export function MobileMonthView({
                 <span
                   className={cn(
                     "flex size-7 items-center justify-center rounded-full text-sm",
-                    today
-                      ? "bg-accent font-semibold text-accent-foreground"
-                      : "text-foreground",
+                    today ? "bg-accent font-semibold text-accent-foreground" : "text-foreground",
                   )}
                 >
                   {day.getDate()}
@@ -272,19 +269,13 @@ export function MobileMonthView({
               <span className="w-24 shrink-0 text-xs text-muted">
                 {instance.startTime} - {instance.endTime}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {instance.title}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{instance.title}</span>
               <RecurringMark instance={instance} className="inline-flex text-muted" />
             </button>
           ))
         )}
         <div className="p-2">
-          <Button
-            fullWidth
-            variant="secondary"
-            onPress={() => onCreateOnDate(activeDate)}
-          >
+          <Button fullWidth variant="secondary" onPress={() => onCreateOnDate(activeDate)}>
             <Plus className="size-4" />
             添加课程
           </Button>

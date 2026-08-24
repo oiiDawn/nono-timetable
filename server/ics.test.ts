@@ -23,9 +23,7 @@ describe("generateCalendar", () => {
     expect(calendar).toContain("TZID:Asia/Shanghai\r\n");
     expect(calendar).not.toContain("BEGIN:VTIMEZONE\r\nTZID=Asia/Shanghai");
     expect(calendar).toContain("UID:rule-1@nono-timetable\r\n");
-    expect(calendar).toContain(
-      "DTSTART;TZID=Asia/Shanghai:20260720T090000\r\n",
-    );
+    expect(calendar).toContain("DTSTART;TZID=Asia/Shanghai:20260720T090000\r\n");
     expect(calendar).toContain("SUMMARY:钢琴课\\, 第一组\r\n");
     expect(calendar).toContain("DESCRIPTION:带教材\\;\\n复习第一章\r\n");
     expect(calendar).toContain("SEQUENCE:3\r\n");
@@ -52,9 +50,7 @@ describe("generateCalendar", () => {
         },
       },
     ]);
-    expect(dateCalendar).toContain(
-      "RRULE:FREQ=DAILY;INTERVAL=7;UNTIL=20260803T010000Z\r\n",
-    );
+    expect(dateCalendar).toContain("RRULE:FREQ=DAILY;INTERVAL=7;UNTIL=20260803T010000Z\r\n");
   });
 
   it("emits time overrides as recurrence exceptions", () => {
@@ -78,12 +74,8 @@ describe("generateCalendar", () => {
     ]);
 
     expect(calendar.match(/UID:rule-1@nono-timetable/g)).toHaveLength(2);
-    expect(calendar).toContain(
-      "RECURRENCE-ID;TZID=Asia/Shanghai:20260727T090000\r\n",
-    );
-    expect(calendar).toContain(
-      "DTSTART;TZID=Asia/Shanghai:20260727T130000\r\n",
-    );
+    expect(calendar).toContain("RECURRENCE-ID;TZID=Asia/Shanghai:20260727T090000\r\n");
+    expect(calendar).toContain("DTSTART;TZID=Asia/Shanghai:20260727T130000\r\n");
     expect(calendar).toContain("DTEND;TZID=Asia/Shanghai:20260727T150000\r\n");
   });
 
@@ -110,23 +102,15 @@ describe("generateCalendar", () => {
       },
     ]);
 
-    expect(calendar).toContain(
-      "RRULE:FREQ=WEEKLY;INTERVAL=1;WKST=MO;BYDAY=MO,TH;COUNT=4\r\n",
-    );
+    expect(calendar).toContain("RRULE:FREQ=WEEKLY;INTERVAL=1;WKST=MO;BYDAY=MO,TH;COUNT=4\r\n");
     expect(calendar).toContain("EXDATE;TZID=Asia/Shanghai:20260723T090000\r\n");
-    expect(calendar).toContain(
-      "RECURRENCE-ID;TZID=Asia/Shanghai:20260727T090000\r\n",
-    );
-    expect(calendar).toContain(
-      "DTSTART;TZID=Asia/Shanghai:20260728T130000\r\n",
-    );
+    expect(calendar).toContain("RECURRENCE-ID;TZID=Asia/Shanghai:20260727T090000\r\n");
+    expect(calendar).toContain("DTSTART;TZID=Asia/Shanghai:20260728T130000\r\n");
     expect(calendar).toContain("SUMMARY:补课\r\n");
   });
 
   it("folds long UTF-8 lines to at most 75 bytes", () => {
-    const calendar = generateCalendar([
-      { ...baseRule, notes: "课程备注".repeat(30) },
-    ]);
+    const calendar = generateCalendar([{ ...baseRule, notes: "课程备注".repeat(30) }]);
     for (const line of calendar.split("\r\n")) {
       expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
     }

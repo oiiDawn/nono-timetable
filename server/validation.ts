@@ -17,9 +17,7 @@ function isValidDate(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 }
 
@@ -39,17 +37,11 @@ function parseRepeat(
   if (value.interval !== undefined && !Number.isInteger(value.interval)) {
     throw new RequestError(400, "重复间隔无效");
   }
-  const interval = Number.isInteger(value.interval)
-    ? (value.interval as number)
-    : 1;
+  const interval = Number.isInteger(value.interval) ? (value.interval as number) : 1;
   if (interval < 1 || interval > 36_500) {
     throw new RequestError(400, "重复间隔无效");
   }
-  if (
-    value.freq !== undefined &&
-    value.freq !== "daily" &&
-    value.freq !== "weekly"
-  ) {
+  if (value.freq !== undefined && value.freq !== "daily" && value.freq !== "weekly") {
     throw new RequestError(400, "重复频率无效");
   }
   if (value.endType !== "count" && value.endType !== "date") {
@@ -122,14 +114,7 @@ function parseRepeat(
 export function parseLessonRule(value: unknown): LessonRule {
   if (!isRecord(value)) throw new RequestError(400, "课程数据无效");
 
-  const requiredStrings = [
-    "id",
-    "title",
-    "startDate",
-    "startTime",
-    "endTime",
-    "notes",
-  ] as const;
+  const requiredStrings = ["id", "title", "startDate", "startTime", "endTime", "notes"] as const;
   for (const key of requiredStrings) {
     if (typeof value[key] !== "string") {
       throw new RequestError(400, `课程字段 ${key} 无效`);
@@ -145,25 +130,16 @@ export function parseLessonRule(value: unknown): LessonRule {
     throw new RequestError(400, "课程 ID 无效");
   }
   if (!isValidDate(startDate)) throw new RequestError(400, "开始日期无效");
-  if (
-    !TIME_PATTERN.test(startTime) ||
-    !TIME_PATTERN.test(endTime) ||
-    startTime >= endTime
-  ) {
+  if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime) || startTime >= endTime) {
     throw new RequestError(400, "课程时间无效");
   }
   if (startTime < "08:00" || endTime > "22:00") {
     throw new RequestError(400, "课程时间必须在 08:00 至 22:00 之间");
   }
-  if ((value.notes as string).length > 10_000)
-    throw new RequestError(400, "备注过长");
+  if ((value.notes as string).length > 10_000) throw new RequestError(400, "备注过长");
 
   const repeat = parseRepeat(value.repeat, startDate, startTime, endTime);
-  if (
-    repeat?.endType === "date" &&
-    repeat.endDate &&
-    repeat.endDate < startDate
-  ) {
+  if (repeat?.endType === "date" && repeat.endDate && repeat.endDate < startDate) {
     throw new RequestError(400, "重复结束日期不能早于开始日期");
   }
 
@@ -176,13 +152,7 @@ export function parseLessonRule(value: unknown): LessonRule {
     endTime,
     notes: (value.notes as string).trim(),
     repeat,
-    createdAt:
-      typeof value.createdAt === "string"
-        ? value.createdAt
-        : new Date().toISOString(),
-    updatedAt:
-      typeof value.updatedAt === "string"
-        ? value.updatedAt
-        : new Date().toISOString(),
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
   };
 }

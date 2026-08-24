@@ -14,11 +14,7 @@ export function RecurringMark({
   const label = instance.isException ? "临时调课" : "循环课程";
   return (
     <span className={className} title={label} aria-label={label}>
-      {instance.isException ? (
-        <ClockArrowUp className="size-3" />
-      ) : (
-        <Repeat className="size-3" />
-      )}
+      {instance.isException ? <ClockArrowUp className="size-3" /> : <Repeat className="size-3" />}
     </span>
   );
 }

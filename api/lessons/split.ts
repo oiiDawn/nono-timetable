@@ -26,8 +26,7 @@ export default {
       const previous = parseLessonRule(body.previous);
       const next = parseLessonRule(body.next);
       const result = await splitLesson(previous, next);
-      if (!result)
-        throw new RequestError(409, "课程已在其他设备修改，请刷新后重试");
+      if (!result) throw new RequestError(409, "课程已在其他设备修改，请刷新后重试");
       return json(result, { status: 201 });
     } catch (error) {
       return handleApiError(error);

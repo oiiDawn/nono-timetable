@@ -1,10 +1,6 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  createSessionCookie,
-  isAuthenticated,
-  verifyPassword,
-} from "./auth";
+import { createSessionCookie, isAuthenticated, verifyPassword } from "./auth";
 
 const originalEnv = { ...process.env };
 

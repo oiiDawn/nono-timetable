@@ -62,12 +62,7 @@ import {
 } from "@/lib/schedule";
 import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createId } from "@/lib/utils";
-import type {
-  ConflictInfo,
-  LessonFormValues,
-  LessonInstance,
-  LessonRule,
-} from "@/types/lesson";
+import type { ConflictInfo, LessonFormValues, LessonInstance, LessonRule } from "@/types/lesson";
 
 type RecurrenceScope = "this" | "future" | "all";
 
@@ -111,9 +106,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => loadStoredViewMode());
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
-  const [selectedDate, setSelectedDate] = useState<string | null>(() =>
-    formatDate(new Date()),
-  );
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => formatDate(new Date()));
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
@@ -121,9 +114,7 @@ export default function App() {
   const [initialFormValues, setInitialFormValues] = useState<LessonFormValues>(() =>
     createDefaultFormValues(),
   );
-  const [formValues, setFormValues] = useState<LessonFormValues>(() =>
-    createDefaultFormValues(),
-  );
+  const [formValues, setFormValues] = useState<LessonFormValues>(() => createDefaultFormValues());
   const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
   const [pendingSave, setPendingSave] = useState<LessonFormValues | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -143,7 +134,9 @@ export default function App() {
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
   const editingRule = rules.find((rule) => rule.id === editingRuleId);
   const originalDate = editingInstance?.originalDate ?? editingRule?.startDate ?? "";
-  const thisEventDisabled = pendingSave ? hasRepeatRuleChanged(initialFormValues, pendingSave) : false;
+  const thisEventDisabled = pendingSave
+    ? hasRepeatRuleChanged(initialFormValues, pendingSave)
+    : false;
 
   const handleApiError = async (error: unknown) => {
     if (error instanceof ApiError && error.status === 401) {
@@ -230,9 +223,10 @@ export default function App() {
     const otherRules = rules.filter((rule) => rule.id !== nextRule.id);
     if (focusDate) {
       const day = parseDate(focusDate);
-      const candidate = expandRulesForRange([nextRule], day, day).find(
-        (item) => item.originalDate === (editingInstance?.originalDate ?? focusDate),
-      ) ?? expandRulesForRange([nextRule], day, day)[0];
+      const candidate =
+        expandRulesForRange([nextRule], day, day).find(
+          (item) => item.originalDate === (editingInstance?.originalDate ?? focusDate),
+        ) ?? expandRulesForRange([nextRule], day, day)[0];
       const conflict = candidate
         ? findConflicts(candidate, expandRulesForRange([...otherRules, nextRule], day, day))
         : null;
@@ -330,9 +324,7 @@ export default function App() {
         return;
       }
 
-      const existing = editingRuleId
-        ? rules.find((rule) => rule.id === editingRuleId)
-        : undefined;
+      const existing = editingRuleId ? rules.find((rule) => rule.id === editingRuleId) : undefined;
       if (!existing) return;
 
       if (!existing.repeat) {
@@ -512,14 +504,12 @@ export default function App() {
         className={
           isMobile
             ? "mx-auto w-full max-w-7xl flex-1 px-3 py-3"
-            : "mx-auto flex w-full min-h-0 max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4"
+            : "mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden px-4 py-4"
         }
       >
         <section
           className={
-            isMobile
-              ? "flex flex-col gap-3"
-              : "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+            isMobile ? "flex flex-col gap-3" : "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
           }
         >
           <CalendarToolbar
@@ -730,11 +720,7 @@ function ScopeDialog({
               <p className="text-sm text-muted">{description}</p>
             </Modal.Body>
             <Modal.Footer>
-              <Button
-                isDisabled={thisDisabled}
-                variant={thisVariant}
-                onPress={onThis}
-              >
+              <Button isDisabled={thisDisabled} variant={thisVariant} onPress={onThis}>
                 仅此事件
               </Button>
               <Button variant="secondary" onPress={onFuture}>
@@ -792,12 +778,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
               }}
             >
               <Label className="sr-only">个人密码</Label>
-              <Input
-                autoComplete="current-password"
-                placeholder="个人密码"
-                autoFocus
-                fullWidth
-              />
+              <Input autoComplete="current-password" placeholder="个人密码" autoFocus fullWidth />
               <FieldError>{error}</FieldError>
             </TextField>
           </Card.Content>

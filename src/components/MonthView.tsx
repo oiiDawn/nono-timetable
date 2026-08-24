@@ -58,7 +58,7 @@ export function MonthView({
               <div
                 key={dateKey}
                 className={cn(
-                  "flex min-h-0 flex-col border-b border-r last:border-r-0 [&:nth-child(7n)]:border-r-0",
+                  "flex min-h-0 flex-col border-r border-b last:border-r-0 nth-[7n]:border-r-0",
                   selected && "bg-accent/15",
                   overflow && "bg-background-secondary",
                 )}
@@ -81,7 +81,7 @@ export function MonthView({
                 </div>
 
                 <div
-                  className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:w-0"
+                  className="flex min-h-0 flex-1 [scrollbar-width:none] flex-col gap-0.5 overflow-y-auto px-1 pb-1 [&::-webkit-scrollbar]:w-0"
                   onClick={() => {
                     onSelectDate(dateKey);
                     onCreateOnDate(dateKey);
@@ -91,7 +91,7 @@ export function MonthView({
                     <button
                       key={`${instance.ruleId}-${instance.originalDate}`}
                       type="button"
-                      className="truncate rounded px-1.5 py-0.5 text-left text-xs leading-tight border border-accent/25 bg-accent-soft hover:bg-accent-soft-hover"
+                      className="truncate rounded border border-accent/25 bg-accent-soft px-1.5 py-0.5 text-left text-xs leading-tight hover:bg-accent-soft-hover"
                       onClick={(event) => {
                         event.stopPropagation();
                         onSelectDate(dateKey);
@@ -99,9 +99,7 @@ export function MonthView({
                       }}
                     >
                       <span className="font-medium">{instance.title}</span>
-                      <span className="ml-1 text-[10px] text-muted">
-                        {instance.startTime}
-                      </span>
+                      <span className="ml-1 text-[10px] text-muted">{instance.startTime}</span>
                       <RecurringMark
                         instance={instance}
                         className="ml-1 inline-flex align-middle text-muted"

@@ -21,12 +21,8 @@ describe("parseLessonRule", () => {
   });
 
   it("rejects impossible dates and out-of-window times", () => {
-    expect(() =>
-      parseLessonRule({ ...validRule, startDate: "2026-02-30" }),
-    ).toThrow(RequestError);
-    expect(() => parseLessonRule({ ...validRule, startTime: "07:45" })).toThrow(
-      RequestError,
-    );
+    expect(() => parseLessonRule({ ...validRule, startDate: "2026-02-30" })).toThrow(RequestError);
+    expect(() => parseLessonRule({ ...validRule, startTime: "07:45" })).toThrow(RequestError);
   });
 
   it("rejects recurrence ending before the first lesson", () => {

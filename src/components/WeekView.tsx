@@ -51,10 +51,7 @@ export function WeekView({
   const headerRef = useRef<HTMLDivElement>(null);
   const now = useNow();
 
-  const todayInWeek = useMemo(
-    () => isDateInWeek(now, weekStart),
-    [now, weekStart],
-  );
+  const todayInWeek = useMemo(() => isDateInWeek(now, weekStart), [now, weekStart]);
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const showNowLine = todayInWeek && isWithinScheduleWindow(nowMinutes);
@@ -68,8 +65,7 @@ export function WeekView({
 
     if (showNowLine) {
       const headerHeight = headerRef.current?.offsetHeight ?? 0;
-      const topPx =
-        headerHeight + (nowTopPercent / 100) * SCHEDULE_BODY_HEIGHT_PX;
+      const topPx = headerHeight + (nowTopPercent / 100) * SCHEDULE_BODY_HEIGHT_PX;
       scrollEl.scrollTop = Math.max(0, topPx - scrollEl.clientHeight / 3);
       return;
     }
@@ -79,14 +75,8 @@ export function WeekView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-surface shadow-surface">
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-      >
-        <div
-          ref={headerRef}
-          className="sticky top-0 z-30 flex border-b bg-surface"
-        >
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+        <div ref={headerRef} className="sticky top-0 z-30 flex border-b bg-surface">
           <div className="w-14 shrink-0 border-r" />
           <div className="grid min-w-0 flex-1 grid-cols-7">
             {weekDays.map((day) => {
@@ -103,11 +93,7 @@ export function WeekView({
                     selected && "bg-accent/15",
                   )}
                 >
-                  <button
-                    type="button"
-                    className="w-full"
-                    onClick={() => onSelectDate(dateKey)}
-                  >
+                  <button type="button" className="w-full" onClick={() => onSelectDate(dateKey)}>
                     <p
                       className={cn(
                         "text-sm font-semibold",
@@ -116,12 +102,7 @@ export function WeekView({
                     >
                       {weekdayLabel(day)}
                     </p>
-                    <p
-                      className={cn(
-                        "text-xs",
-                        today ? "text-accent/80" : "text-muted",
-                      )}
-                    >
+                    <p className={cn("text-xs", today ? "text-accent/80" : "text-muted")}>
                       {day.getMonth() + 1}月{day.getDate()}日
                     </p>
                   </button>
@@ -177,10 +158,7 @@ export function WeekView({
                     onSelectDate(dateKey);
                     const rect = event.currentTarget.getBoundingClientRect();
                     const offsetY = event.clientY - rect.top;
-                    const startTime = getTimeFromClickOffset(
-                      offsetY,
-                      SCHEDULE_BODY_HEIGHT_PX,
-                    );
+                    const startTime = getTimeFromClickOffset(offsetY, SCHEDULE_BODY_HEIGHT_PX);
                     onCreateAtSlot(dateKey, startTime, getDefaultEndTime(startTime));
                   }}
                 >
@@ -204,10 +182,7 @@ export function WeekView({
 
                   {layouted.map(({ instance, column, columnCount }) => {
                     const top = timeToTopPercent(instance.startTime);
-                    const height = timeRangeToHeightPercent(
-                      instance.startTime,
-                      instance.endTime,
-                    );
+                    const height = timeRangeToHeightPercent(instance.startTime, instance.endTime);
                     const showTime =
                       blockHeightPx(instance.startTime, instance.endTime) >=
                       MIN_BLOCK_HEIGHT_FOR_TIME_PX;
@@ -232,9 +207,7 @@ export function WeekView({
                           onSelectLesson(instance);
                         }}
                       >
-                        <p className="truncate font-medium leading-tight">
-                          {instance.title}
-                        </p>
+                        <p className="truncate leading-tight font-medium">{instance.title}</p>
                         {showTime ? (
                           <p className="truncate text-[10px] text-muted">
                             {instance.startTime} - {instance.endTime}
