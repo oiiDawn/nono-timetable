@@ -47,6 +47,7 @@ import {
 } from "@/lib/repeat";
 import {
   expandRulesForRange,
+  filterRulesByTitle,
   findConflicts,
   findConflictsForRule,
   formValuesToRule,
@@ -102,6 +103,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rules, setRules] = useState<LessonRule[]>([]);
+  const [titleFilter, setTitleFilter] = useState("");
   const loadingRef = useRef(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>(() => loadStoredViewMode());
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
@@ -122,13 +124,15 @@ export default function App() {
 
   const weekEnd = addDays(weekStart, 6);
   const monthRange = getMonthGridRange(monthStart);
+  const visibleRules = useMemo(() => filterRulesByTitle(rules, titleFilter), [rules, titleFilter]);
+
   const weekInstances = useMemo(
-    () => expandRulesForRange(rules, weekStart, weekEnd),
-    [rules, weekStart, weekEnd],
+    () => expandRulesForRange(visibleRules, weekStart, weekEnd),
+    [visibleRules, weekStart, weekEnd],
   );
   const monthInstances = useMemo(
-    () => expandRulesForRange(rules, monthRange.start, monthRange.end),
-    [rules, monthRange.end, monthRange.start],
+    () => expandRulesForRange(visibleRules, monthRange.start, monthRange.end),
+    [visibleRules, monthRange.end, monthRange.start],
   );
   const calendarTitle =
     viewMode === "month" ? formatMonthLabel(monthStart) : formatWeekLabel(weekStart);
@@ -515,7 +519,9 @@ export default function App() {
           <CalendarToolbar
             viewMode={viewMode}
             title={calendarTitle}
+            titleFilter={titleFilter}
             onViewModeChange={handleViewModeChange}
+            onTitleFilterChange={setTitleFilter}
             onPrevious={handlePrevious}
             onNext={handleNext}
           />

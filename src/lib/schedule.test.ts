@@ -1,7 +1,10 @@
+/** Verifies schedule calculations, lesson transformations, and validation rules. */
+
 import { addDays, formatDate, isSameMonth, parseDate, startOfMonth } from "@/lib/dates";
 import { describe, expect, it } from "vitest";
 import {
   expandRuleOccurrences,
+  filterRulesByTitle,
   findConflicts,
   formatMonthLabel,
   getDefaultEndTime,
@@ -30,6 +33,14 @@ const baseRule: LessonRule = {
 };
 
 describe("schedule", () => {
+  it("filters lesson titles by trimmed case-insensitive substring", () => {
+    const rules = [baseRule, { ...baseRule, id: "rule-2", title: "English ABC" }];
+
+    expect(filterRulesByTitle(rules, "  english  ")).toEqual([rules[1]]);
+    expect(filterRulesByTitle(rules, "琴")).toEqual([baseRule]);
+    expect(filterRulesByTitle(rules, "  ")).toBe(rules);
+  });
+
   it("expands single lesson within week range", () => {
     const weekStart = getWeekStart(parseDate("2026-07-06"));
     const weekEnd = addDays(weekStart, 6);

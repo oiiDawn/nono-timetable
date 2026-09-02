@@ -1,13 +1,15 @@
-/** Month/week switcher and period navigation. */
+/** Month/week switcher, period navigation, and lesson title filter. */
 
-import { Button, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import { Button, Input, Label, TextField, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarViewMode } from "@/lib/schedule";
 
 interface CalendarToolbarProps {
   viewMode: CalendarViewMode;
   title: string;
+  titleFilter: string;
   onViewModeChange: (mode: CalendarViewMode) => void;
+  onTitleFilterChange: (value: string) => void;
   onPrevious: () => void;
   onNext: () => void;
 }
@@ -15,7 +17,9 @@ interface CalendarToolbarProps {
 export function CalendarToolbar({
   viewMode,
   title,
+  titleFilter,
   onViewModeChange,
+  onTitleFilterChange,
   onPrevious,
   onNext,
 }: CalendarToolbarProps) {
@@ -46,6 +50,11 @@ export function CalendarToolbar({
           <ChevronRight className="size-5" />
         </Button>
       </div>
+
+      <TextField className="w-full sm:w-64" value={titleFilter} onChange={onTitleFilterChange}>
+        <Label className="sr-only">按课程名称过滤</Label>
+        <Input type="search" placeholder="过滤课程名称" fullWidth />
+      </TextField>
     </div>
   );
 }

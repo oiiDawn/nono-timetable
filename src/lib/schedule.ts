@@ -51,6 +51,11 @@ export const VIEW_MODE_STORAGE_KEY = "nono-timetable-view-mode";
 
 export type CalendarViewMode = "month" | "week";
 
+export function filterRulesByTitle(rules: LessonRule[], titleFilter: string): LessonRule[] {
+  const query = titleFilter.trim().toLowerCase();
+  return query ? rules.filter((rule) => rule.title.toLowerCase().includes(query)) : rules;
+}
+
 export const WEEKDAY_HEADERS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
 
 export function getMonthGridDays(monthStart: Date): Date[] {
