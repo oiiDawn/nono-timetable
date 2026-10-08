@@ -25,6 +25,36 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export interface McpConnection {
+  id: string;
+  name: string | null;
+  createdAt: string;
+}
+export function getOAuthRequest(id: string) {
+  return requestJson<{ clientName: string; redirectUri: string }>(
+    `/api/oauth?action=consent&id=${encodeURIComponent(id)}`,
+  );
+}
+export function decideOAuthRequest(id: string, approve: boolean) {
+  return requestJson<{ redirectUri: string }>(
+    `/api/oauth?action=consent&id=${encodeURIComponent(id)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ approve }),
+    },
+  );
+}
+export async function getMcpConnections() {
+  return (await requestJson<{ connections: McpConnection[] }>("/api/oauth?action=connections"))
+    .connections;
+}
+export async function revokeMcpConnection(id: string) {
+  await requestJson("/api/oauth?action=connections", {
+    method: "DELETE",
+    body: JSON.stringify({ id }),
+  });
+}
+
 export async function getSession(): Promise<boolean> {
   const result = await requestJson<{ authenticated: boolean }>("/api/auth/session");
   return result.authenticated;

@@ -20,6 +20,7 @@ import { LessonForm } from "@/components/LessonForm";
 import { MobileDayView, MobileMonthView } from "@/components/MobileCalendar";
 import { MonthView } from "@/components/MonthView";
 import { StudentManager } from "@/components/StudentManager";
+import { McpConnections, OAuthConsent } from "@/components/McpAccess";
 import { WeekView } from "@/components/WeekView";
 import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
 import {
@@ -100,6 +101,7 @@ function sortRules(rules: LessonRule[]): LessonRule[] {
 }
 
 export default function App() {
+  const oauthRequestId = new URLSearchParams(window.location.search).get("oauth_request");
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
@@ -113,6 +115,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string | null>(() => formatDate(new Date()));
   const [formOpen, setFormOpen] = useState(false);
   const [studentManagerOpen, setStudentManagerOpen] = useState(false);
+  const [mcpConnectionsOpen, setMcpConnectionsOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingInstance, setEditingInstance] = useState<LessonInstance | null>(null);
@@ -181,8 +184,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (authenticated) void loadCloudLessons();
-  }, [authenticated]);
+    if (authenticated && !oauthRequestId) void loadCloudLessons();
+  }, [authenticated, oauthRequestId]);
 
   const openCreateForm = (date: string, startTime = "09:00", endTime = "11:00") => {
     const values = { ...createDefaultFormValues(date), startTime, endTime };
@@ -496,6 +499,8 @@ export default function App() {
     return <LoginScreen onAuthenticated={() => setAuthenticated(true)} />;
   }
 
+  if (oauthRequestId) return <OAuthConsent requestId={oauthRequestId} />;
+
   return (
     <div
       className={
@@ -505,11 +510,14 @@ export default function App() {
       }
     >
       <AppBar
+        onManageConnections={() => setMcpConnectionsOpen(true)}
         onManageStudents={() => setStudentManagerOpen(true)}
         onCopySubscription={() => void copySubscriptionUrl()}
         onGoToday={goToToday}
         onLogout={handleLogout}
       />
+
+      {mcpConnectionsOpen ? <McpConnections onClose={() => setMcpConnectionsOpen(false)} /> : null}
 
       <main
         className={

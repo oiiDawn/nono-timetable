@@ -25,7 +25,7 @@ function databaseUrl(): string {
   return value;
 }
 
-function sql() {
+export function sql() {
   return neon(databaseUrl());
 }
 
@@ -235,4 +235,40 @@ export async function splitLesson(
       throw error;
     })) as Array<{ previous: LessonRow; next: LessonRow }>;
   return rows[0] ? { previous: mapRow(rows[0].previous), next: mapRow(rows[0].next) } : null;
+}
+
+/** Commit an agent plan only while its full snapshot and OAuth grant remain valid. */
+export async function commitMcpLessons(
+  snapshot: Record<string, number>,
+  replacements: LessonRule[],
+  removedId: string | null,
+  grantId: string,
+): Promise<boolean> {
+  await ensureSchema();
+  const db = sql();
+  const results = await db.transaction([
+    db.query("LOCK TABLE lessons IN SHARE ROW EXCLUSIVE MODE"),
+    db.query(
+      `WITH grant_lock AS MATERIALIZED (
+      SELECT id FROM oauth_grants WHERE id = $4 AND NOT revoked FOR UPDATE
+    ), allowed AS MATERIALIZED (
+      SELECT 1 FROM grant_lock WHERE
+        COALESCE((SELECT jsonb_object_agg(id, version) FROM lessons), '{}'::jsonb) = $1::jsonb
+    ), removed AS (
+      DELETE FROM lessons WHERE id = $3 AND EXISTS (SELECT 1 FROM allowed)
+        AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements($2::jsonb) r WHERE r->>'id' = $3)
+    ), saved AS (
+      INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, location, repeat_rule)
+      SELECT r->>'id', r->>'title', (r->>'startDate')::date, r->>'startTime', r->>'endTime',
+        r->>'notes', r->'location', r->'repeat' FROM jsonb_array_elements($2::jsonb) r
+      WHERE EXISTS (SELECT 1 FROM allowed)
+      ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, start_date = EXCLUDED.start_date,
+        start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time, notes = EXCLUDED.notes,
+        location = EXCLUDED.location, repeat_rule = EXCLUDED.repeat_rule,
+        version = lessons.version + 1, updated_at = now()
+    ) SELECT EXISTS (SELECT 1 FROM allowed) AS applied`,
+      [JSON.stringify(snapshot), JSON.stringify(replacements), removedId, grantId],
+    ),
+  ]);
+  return results[1][0]?.applied === true;
 }

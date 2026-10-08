@@ -1,7 +1,7 @@
 /** Responsive app bar with student management and global calendar actions. */
 
 import { Button, Tooltip } from "@heroui/react";
-import { CalendarDays, Copy, LogOut, Monitor, Moon, Sun, Users } from "lucide-react";
+import { CalendarDays, Copy, LogOut, Monitor, Moon, Sun, Users, Plug } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { loadThemePreference, setThemePreference, type ThemePreference } from "@/lib/theme";
 
@@ -41,11 +41,13 @@ function IconAction({
 }
 
 export function AppBar({
+  onManageConnections,
   onManageStudents,
   onCopySubscription,
   onGoToday,
   onLogout,
 }: {
+  onManageConnections: () => void;
   onManageStudents: () => void;
   onCopySubscription: () => void;
   onGoToday: () => void;
@@ -67,6 +69,9 @@ export function AppBar({
           <h1 className="truncate text-lg font-semibold">排课表</h1>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <IconAction label="MCP 授权" onPress={onManageConnections}>
+            <Plug className="size-5" />
+          </IconAction>
           <IconAction label="学生管理" onPress={onManageStudents}>
             <Users className="size-5" />
           </IconAction>

@@ -6,6 +6,18 @@
   "regions": ["hkg1"],
   "rewrites": [
     {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "/api/oauth?action=metadata"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/api/mcp",
+      "destination": "/api/oauth?action=resource"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/oauth?action=resource"
+    },
+    {
       "source": "/calendar/:token.ics",
       "destination": "/api/calendar?token=:token"
     }

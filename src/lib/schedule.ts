@@ -1,7 +1,7 @@
 /** Calendar layout, instance expansion, conflicts, and lesson form conversion. */
 
-import { addDays, addMonths, formatDate, getWeekStart, isSameDay } from "@/lib/dates";
-import { createId } from "@/lib/utils";
+import { addDays, addMonths, formatDate, getWeekStart, isSameDay } from "./dates.js";
+import { createId } from "./utils.js";
 import {
   DEFAULT_REPEAT_COUNT,
   listGeneratedOccurrenceDates,
@@ -9,10 +9,15 @@ import {
   repeatFromForm,
   repeatPresetOf,
   weekdayFromDate,
-} from "@/lib/repeat";
-import type { ConflictInfo, LessonFormValues, LessonInstance, LessonRule } from "@/types/lesson";
+} from "./repeat.js";
+import type {
+  ConflictInfo,
+  LessonFormValues,
+  LessonInstance,
+  LessonRule,
+} from "../types/lesson.js";
 
-export { formatDate, getWeekStart, parseDate, startOfMonth } from "@/lib/dates";
+export { formatDate, getWeekStart, parseDate, startOfMonth } from "./dates.js";
 
 export const SCHEDULE_DAY_START = "08:00";
 export const SCHEDULE_DAY_END = "22:00";

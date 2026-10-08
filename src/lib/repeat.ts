@@ -183,21 +183,19 @@ export function listGeneratedOccurrenceDates(rule: LessonRule, limit = 10_000): 
   let weekIndex = 0;
   let occurrenceIndex = 0;
 
-  while (occurrenceIndex < limit && weekIndex < limit * 2) {
-    if (weekIndex % repeat.interval === 0) {
-      for (let offset = 0; offset < 7; offset += 1) {
-        const current = addDays(startWeekMonday, weekIndex * 7 + offset);
-        if (current < start) continue;
-        if (!weekdays.has(JS_DAY_TO_WEEKDAY[current.getDay()]!)) continue;
-        if (!isWithinRepeatBounds(current, repeat, occurrenceIndex)) {
-          return dates;
-        }
-        dates.push(formatDate(current));
-        occurrenceIndex += 1;
-        if (occurrenceIndex >= limit) return dates;
+  while (occurrenceIndex < limit && weekIndex < limit * repeat.interval) {
+    for (let offset = 0; offset < 7; offset += 1) {
+      const current = addDays(startWeekMonday, weekIndex * 7 + offset);
+      if (current < start) continue;
+      if (!weekdays.has(JS_DAY_TO_WEEKDAY[current.getDay()]!)) continue;
+      if (!isWithinRepeatBounds(current, repeat, occurrenceIndex)) {
+        return dates;
       }
+      dates.push(formatDate(current));
+      occurrenceIndex += 1;
+      if (occurrenceIndex >= limit) return dates;
     }
-    weekIndex += 1;
+    weekIndex += repeat.interval;
   }
 
   return dates;
