@@ -213,6 +213,12 @@ export function WeekView({
                             {instance.startTime} - {instance.endTime}
                           </p>
                         ) : null}
+                        {instance.location &&
+                        blockHeightPx(instance.startTime, instance.endTime) >= 60 ? (
+                          <p className="truncate text-[10px] text-muted">
+                            {instance.location.name}
+                          </p>
+                        ) : null}
                         <RecurringMark
                           instance={instance}
                           className="mt-1 inline-flex text-muted"

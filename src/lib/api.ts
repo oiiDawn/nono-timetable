@@ -1,6 +1,6 @@
 /** Call authenticated cloud APIs and expose actionable server errors. */
 
-import type { LessonPreset, LessonRule } from "@/types/lesson";
+import type { LessonLocation, LessonPreset, LessonRule } from "@/types/lesson";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -52,7 +52,7 @@ export async function fetchLessonPresets(): Promise<LessonPreset[]> {
 }
 
 export async function saveLessonPreset(
-  values: Pick<LessonPreset, "title" | "notes">,
+  values: Pick<LessonPreset, "title" | "notes" | "location">,
   existing?: LessonPreset,
 ): Promise<LessonPreset> {
   const result = await requestJson<{ preset: LessonPreset }>("/api/lesson-presets", {
@@ -106,4 +106,16 @@ export async function removeLesson(rule: LessonRule): Promise<void> {
 export async function getCalendarUrl(): Promise<string> {
   const result = await requestJson<{ calendarUrl: string }>("/api/settings");
   return result.calendarUrl;
+}
+
+export async function searchLocations(
+  query: string,
+  signal: AbortSignal,
+): Promise<LessonLocation[]> {
+  const result = await requestJson<{ locations: LessonLocation[] }>("/api/locations", {
+    method: "POST",
+    body: JSON.stringify({ query }),
+    signal,
+  });
+  return result.locations;
 }

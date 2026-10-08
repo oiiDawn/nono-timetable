@@ -275,6 +275,7 @@ function createInstance(rule: LessonRule, originalDate: string): LessonInstance 
     startTime: exception?.startTime ?? rule.startTime,
     endTime: exception?.endTime ?? rule.endTime,
     notes: exception?.notes ?? rule.notes,
+    location: exception?.location === undefined ? rule.location : exception.location,
     isRecurring: Boolean(rule.repeat),
     isException: Boolean(exception),
   };
@@ -341,7 +342,10 @@ export function findConflictsForRule(
 
 export function ruleToFormValues(
   rule: LessonRule,
-  instance?: Pick<LessonInstance, "date" | "title" | "startTime" | "endTime" | "notes">,
+  instance?: Pick<
+    LessonInstance,
+    "date" | "title" | "startTime" | "endTime" | "notes" | "location"
+  >,
 ): LessonFormValues {
   const normalized = normalizeRule(rule);
   const repeat = normalized.repeat;
@@ -352,6 +356,7 @@ export function ruleToFormValues(
     startTime: instance?.startTime ?? normalized.startTime,
     endTime: instance?.endTime ?? normalized.endTime,
     notes: instance?.notes ?? normalized.notes,
+    location: instance ? instance.location : normalized.location,
     repeatPreset: repeatPresetOf(normalized),
     freq: repeat?.freq ?? "weekly",
     interval: repeat?.interval ?? 1,
@@ -378,6 +383,7 @@ export function formValuesToRule(values: LessonFormValues, existing?: LessonRule
     startTime: values.startTime,
     endTime: values.endTime,
     notes: values.notes.trim(),
+    location: values.location,
     repeat,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

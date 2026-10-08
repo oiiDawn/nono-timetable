@@ -1,3 +1,5 @@
+/** Verify lesson inputs, recurrence boundaries, and saved-place validation. */
+
 import { describe, expect, it } from "vitest";
 import { RequestError } from "./http";
 import { parseLessonRule } from "./validation";
@@ -16,6 +18,59 @@ const validRule = {
 };
 
 describe("parseLessonRule", () => {
+  it("validates manual places and coordinates before normalizing recurrence overrides", () => {
+    const location = { name: " 学生家 ", address: "杭州", detail: "302" };
+    expect(parseLessonRule({ ...validRule, location }).location?.name).toBe("学生家");
+    for (const invalid of [
+      "地址",
+      { ...location, name: " " },
+      { ...location, longitude: 120 },
+      { ...location, longitude: Infinity, latitude: 30 },
+      { ...location, longitude: 120, latitude: 91 },
+      { ...location, address: 1 },
+      { ...location, detail: "a".repeat(501) },
+    ]) {
+      expect(() => parseLessonRule({ ...validRule, location: invalid })).toThrow(RequestError);
+      expect(() =>
+        parseLessonRule({
+          ...validRule,
+          repeat: {
+            freq: "daily",
+            interval: 1,
+            endType: "count",
+            endCount: 2,
+            exceptions: {
+              "2026-07-21": {
+                date: "2026-07-21",
+                startTime: "09:00",
+                endTime: "10:00",
+                location: invalid,
+              },
+            },
+          },
+        }),
+      ).toThrow(RequestError);
+    }
+    const cleared = parseLessonRule({
+      ...validRule,
+      location,
+      repeat: {
+        freq: "daily",
+        interval: 1,
+        endType: "count",
+        endCount: 2,
+        exceptions: {
+          "2026-07-21": {
+            date: "2026-07-21",
+            startTime: "09:00",
+            endTime: "10:00",
+            location: null,
+          },
+        },
+      },
+    });
+    expect(cleared.repeat?.exceptions?.["2026-07-21"]?.location).toBeNull();
+  });
   it("accepts a valid cloud lesson", () => {
     expect(parseLessonRule(validRule)).toMatchObject(validRule);
   });

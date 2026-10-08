@@ -104,6 +104,11 @@ export function MonthView({
                         instance={instance}
                         className="ml-1 inline-flex align-middle text-muted"
                       />
+                      {instance.location ? (
+                        <span className="block truncate text-[10px] text-muted">
+                          {instance.location.name}
+                        </span>
+                      ) : null}
                     </button>
                   ))}
                 </div>

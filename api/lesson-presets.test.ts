@@ -48,10 +48,13 @@ function request(
 }
 
 it("saves, reads on another request, updates, and deletes a preset with version protection", async () => {
-  const created = await handler.fetch(request("POST", { title: " 小明 ", notes: " 数学一对一 " }));
+  const location = { name: "学生家", address: "杭州", detail: "302" };
+  const created = await handler.fetch(
+    request("POST", { title: " 小明 ", notes: " 数学一对一 ", location }),
+  );
   expect(created.status).toBe(201);
   const { preset } = (await created.json()) as { preset: LessonPreset };
-  expect(preset).toMatchObject({ title: "小明", notes: "数学一对一", version: 1 });
+  expect(preset).toMatchObject({ title: "小明", notes: "数学一对一", location, version: 1 });
   expect(await (await handler.fetch(request("GET"))).json()).toEqual({ presets: [preset] });
   const updated = await handler.fetch(request("PUT", { ...preset, notes: "英语" }));
   expect(updated.status).toBe(200);
@@ -80,6 +83,10 @@ it("rejects unauthenticated reads, cross-origin writes, and invalid input before
   for (const version of [0, -1, 1.5, "1", Number.MAX_SAFE_INTEGER + 1]) {
     expect(() => parsePresetIdentity({ id: "preset", version })).toThrow();
   }
-  expect(parseLessonPreset({ title: "小明", notes: "" })).toEqual({ title: "小明", notes: "" });
+  expect(parseLessonPreset({ title: "小明", notes: "" })).toEqual({
+    title: "小明",
+    notes: "",
+    location: null,
+  });
   expect(store.size).toBe(0);
 });

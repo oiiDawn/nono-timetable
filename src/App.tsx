@@ -37,11 +37,11 @@ import {
 import {
   DEFAULT_REPEAT_COUNT,
   applyAllEventsEdit,
+  applyOccurrenceEdit,
   excludeOccurrence,
   hasRepeatRuleChanged,
   isFirstGeneratedOccurrence,
   remainingOccurrenceCount,
-  setOccurrenceException,
   splitSeries,
   truncateRuleBefore,
   weekdayFromDate,
@@ -82,6 +82,7 @@ function createDefaultFormValues(date?: string): LessonFormValues {
     startTime: "09:00",
     endTime: "11:00",
     notes: "",
+    location: null,
     repeatPreset: "none",
     freq: "weekly",
     interval: 1,
@@ -263,13 +264,7 @@ export default function App() {
 
   const saveThisEvent = async (values: LessonFormValues, rule: LessonRule) => {
     if (!editingInstance) return;
-    const nextRule = setOccurrenceException(rule, editingInstance.originalDate, {
-      date: values.startDate,
-      startTime: values.startTime,
-      endTime: values.endTime,
-      title: values.title.trim(),
-      notes: values.notes.trim(),
-    });
+    const nextRule = applyOccurrenceEdit(rule, editingInstance.originalDate, values);
     if (!checkConflicts(nextRule, values.startDate)) return;
     await persistRule(nextRule, rule);
   };
@@ -277,7 +272,11 @@ export default function App() {
   const saveAllEvents = async (values: LessonFormValues, rule: LessonRule) => {
     const drafted = formValuesToRule(values, rule);
     const { rule: nextRule, invalidDates } = rule.repeat
-      ? applyAllEventsEdit(rule, drafted, originalDate)
+      ? applyAllEventsEdit(
+          rule,
+          { ...drafted, locationAction: values.locationAction },
+          originalDate,
+        )
       : { rule: drafted, invalidDates: [] };
     const proceed = async () => {
       if (!checkConflicts(nextRule)) return;
@@ -303,11 +302,16 @@ export default function App() {
     if (drafted.repeat?.endType === "count" && values.endCount === initialFormValues.endCount) {
       drafted.repeat.endCount = remainingOccurrenceCount(rule, originalDate);
     }
-    const { previous, next } = splitSeries(rule, originalDate, {
-      ...drafted,
-      id: createId(),
-      version: 0,
-    });
+    const { previous, next } = splitSeries(
+      rule,
+      originalDate,
+      {
+        ...drafted,
+        id: createId(),
+        version: 0,
+      },
+      values.locationAction,
+    );
     if (!checkConflicts(next) || !checkConflicts(previous)) return;
     const saved = await splitLesson(previous, next);
     replaceRules([
@@ -613,6 +617,7 @@ export default function App() {
         open={formOpen}
         title={formMode === "create" ? "新增课程" : "编辑课程"}
         initialValues={formValues}
+        seriesLocation={editingRule?.repeat ? editingRule.location : undefined}
         conflicts={pendingConflicts}
         showStudents={formMode === "create"}
         onDelete={formMode === "edit" ? handleDelete : undefined}

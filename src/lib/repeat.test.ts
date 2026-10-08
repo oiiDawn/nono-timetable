@@ -1,6 +1,9 @@
+/** Verify recurrence edits, including inherited, fixed, and cleared places. */
+
 import { describe, expect, it } from "vitest";
 import {
   applyAllEventsEdit,
+  applyOccurrenceEdit,
   excludeOccurrence,
   isFirstGeneratedOccurrence,
   listGeneratedOccurrenceDates,
@@ -10,7 +13,7 @@ import {
   splitSeries,
   truncateRuleBefore,
 } from "@/lib/repeat";
-import { expandRuleOccurrences, findConflicts, parseDate } from "@/lib/schedule";
+import { expandRuleOccurrences, findConflicts, parseDate, ruleToFormValues } from "@/lib/schedule";
 import type { LessonRule } from "@/types/lesson";
 
 const baseRule: LessonRule = {
@@ -21,12 +24,111 @@ const baseRule: LessonRule = {
   startTime: "09:00",
   endTime: "10:00",
   notes: "",
+  location: null,
   repeat: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",
 };
 
 describe("repeat", () => {
+  it("keeps explicit places and clears when the series changes through the same place", () => {
+    const a = { name: "A", address: "杭州", detail: "" };
+    const b = { ...a, name: "B" };
+    const c = { ...a, name: "C" };
+    const rule: LessonRule = {
+      ...baseRule,
+      location: a,
+      repeat: { freq: "daily", interval: 1, endType: "count", endCount: 4 },
+    };
+    const fixed = setOccurrenceException(rule, "2026-07-07", {
+      date: "2026-07-07",
+      startTime: "09:00",
+      endTime: "10:00",
+      location: b,
+    });
+    const cleared = setOccurrenceException(fixed, "2026-07-08", {
+      date: "2026-07-08",
+      startTime: "09:00",
+      endTime: "10:00",
+      location: null,
+    });
+    const atB = applyAllEventsEdit(
+      cleared,
+      { ...cleared, location: b, locationAction: "set" },
+      "2026-07-06",
+    ).rule;
+    const atC = applyAllEventsEdit(
+      atB,
+      { ...atB, location: c, locationAction: "set" },
+      "2026-07-06",
+    ).rule;
+    expect(
+      expandRuleOccurrences(atC, parseDate("2026-07-06"), parseDate("2026-07-09")).map(
+        (item) => item.location?.name ?? null,
+      ),
+    ).toEqual(["C", "B", null, "C"]);
+    const restored = applyOccurrenceEdit(atC, "2026-07-07", {
+      ...ruleToFormValues(atC),
+      startDate: "2026-07-07",
+      location: c,
+      locationAction: "inherit",
+    });
+    expect(restored.repeat?.exceptions?.["2026-07-07"]).toBeUndefined();
+  });
+
+  it("preserves inheritance on time-only edits and preserves fixed places across future splits", () => {
+    const a = { name: "A", address: "杭州", detail: "" };
+    const b = { ...a, name: "B" };
+    const rule: LessonRule = {
+      ...baseRule,
+      location: a,
+      repeat: { freq: "daily", interval: 1, endType: "count", endCount: 4 },
+    };
+    const timeOnly = applyOccurrenceEdit(rule, "2026-07-07", {
+      ...ruleToFormValues(rule),
+      startDate: "2026-07-07",
+      startTime: "11:00",
+      endTime: "12:00",
+    });
+    expect(timeOnly.repeat?.exceptions?.["2026-07-07"]?.location).toBeUndefined();
+    const changed = applyAllEventsEdit(
+      timeOnly,
+      { ...timeOnly, location: b, locationAction: "set" },
+      rule.startDate,
+    ).rule;
+    expect(
+      expandRuleOccurrences(changed, parseDate("2026-07-07"), parseDate("2026-07-07"))[0].location,
+    ).toEqual(b);
+    for (const location of [b, null]) {
+      const fixed = setOccurrenceException(rule, "2026-07-07", {
+        date: "2026-07-07",
+        startTime: "09:00",
+        endTime: "10:00",
+        location,
+      });
+      const nextMaster = {
+        ...fixed,
+        id: "next",
+        location,
+        startDate: "2026-07-07",
+        startTime: "11:00",
+        endTime: "12:00",
+        repeat: { ...fixed.repeat!, endCount: 3 },
+      };
+      const split = splitSeries(fixed, "2026-07-07", nextMaster);
+      expect(split.next.location).toEqual(a);
+      expect(split.next.repeat?.exceptions?.["2026-07-07"]?.location).toEqual(location);
+      const all = applyAllEventsEdit(
+        fixed,
+        { ...fixed, location, startTime: "11:00" },
+        "2026-07-07",
+      ).rule;
+      expect(all.location).toEqual(a);
+      const replaced = splitSeries(fixed, "2026-07-07", { ...nextMaster, location: b }, "set");
+      expect(replaced.next.location).toEqual(b);
+      expect(replaced.next.repeat?.exceptions?.["2026-07-07"]).toBeUndefined();
+    }
+  });
   it("normalizes legacy every-N-days rules and time overrides", () => {
     const repeat = normalizeRepeat({
       intervalDays: 2,
@@ -185,6 +287,7 @@ describe("repeat", () => {
         startTime: "11:00",
         endTime: "12:00",
         notes: "",
+        location: null,
         repeat: rule.repeat,
       },
       "2026-07-10",
@@ -224,6 +327,7 @@ describe("repeat", () => {
         startTime: "11:00",
         endTime: "12:00",
         notes: "",
+        location: null,
         repeat: rule.repeat,
       },
       "2026-07-06",
@@ -244,6 +348,7 @@ describe("repeat", () => {
       startTime: "09:00",
       endTime: "10:00",
       notes: "",
+      location: null,
       isRecurring: true,
       isException: true,
     };
@@ -255,6 +360,7 @@ describe("repeat", () => {
       startTime: "09:30",
       endTime: "10:30",
       notes: "",
+      location: null,
       isRecurring: true,
       isException: false,
     };

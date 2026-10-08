@@ -171,6 +171,9 @@ export function MobileDayView({
                     {instance.startTime} - {instance.endTime}
                   </p>
                 ) : null}
+                {instance.location && blockHeightPx(instance.startTime, instance.endTime) >= 60 ? (
+                  <p className="truncate text-[10px] text-muted">{instance.location.name}</p>
+                ) : null}
                 <RecurringMark instance={instance} className="mt-1 inline-flex text-muted" />
               </button>
             );
@@ -269,7 +272,14 @@ export function MobileMonthView({
               <span className="w-24 shrink-0 text-xs text-muted">
                 {instance.startTime} - {instance.endTime}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{instance.title}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{instance.title}</span>
+                {instance.location ? (
+                  <span className="block truncate text-xs text-muted">
+                    {instance.location.name}
+                  </span>
+                ) : null}
+              </span>
               <RecurringMark instance={instance} className="inline-flex text-muted" />
             </button>
           ))

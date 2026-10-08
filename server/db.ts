@@ -1,7 +1,8 @@
-/** Persist cloud lessons and reusable name/notes presets with optimistic version checks. */
+/** Persist lessons and student defaults with places and optimistic version checks. */
 
 import { neon } from "@neondatabase/serverless";
-import { normalizeRepeat } from "../src/lib/repeat.js";
+import { isRecord, normalizeRepeat } from "../src/lib/repeat.js";
+import { parseLocation } from "../src/lib/location.js";
 import type { LessonPreset, LessonRule, RepeatRule } from "../src/types/lesson.js";
 
 interface LessonRow {
@@ -11,6 +12,7 @@ interface LessonRow {
   start_time: string;
   end_time: string;
   notes: string;
+  location: unknown;
   repeat_rule: RepeatRule | null;
   version: number;
   created_at: string;
@@ -41,6 +43,7 @@ export function ensureSchema(): Promise<unknown> {
         end_time VARCHAR(5) NOT NULL,
         notes TEXT NOT NULL DEFAULT '',
         repeat_rule JSONB,
+        location JSONB,
         version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -53,11 +56,14 @@ export function ensureSchema(): Promise<unknown> {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
         notes TEXT NOT NULL DEFAULT '' CHECK (length(notes) <= 10000),
+        location JSONB,
         version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `),
     )
+    .then(() => sql().query("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS location JSONB"))
+    .then(() => sql().query("ALTER TABLE lesson_presets ADD COLUMN IF NOT EXISTS location JSONB"))
     .catch((error: unknown) => {
       schemaPromise = undefined;
       throw error;
@@ -75,6 +81,7 @@ function mapRow(row: LessonRow): LessonRule {
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
     notes: row.notes,
+    location: parseLocation(row.location),
     repeat,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -82,7 +89,7 @@ function mapRow(row: LessonRow): LessonRule {
 }
 
 const RETURNING = `
-  id, title, start_date::text, start_time, end_time, notes, repeat_rule,
+  id, title, start_date::text, start_time, end_time, notes, location, repeat_rule,
   version, created_at::text, updated_at::text
 `;
 
@@ -97,16 +104,16 @@ export async function listLessons(): Promise<LessonRule[]> {
 export async function listLessonPresets(): Promise<LessonPreset[]> {
   await ensureSchema();
   return (await sql().query(
-    "SELECT id, title, notes, version FROM lesson_presets ORDER BY created_at, id",
+    "SELECT id, title, notes, location, version FROM lesson_presets ORDER BY created_at, id",
   )) as LessonPreset[];
 }
 
 export async function createLessonPreset(preset: LessonPreset): Promise<LessonPreset> {
   await ensureSchema();
   const rows = (await sql().query(
-    `INSERT INTO lesson_presets (id, title, notes) VALUES ($1, $2, $3)
-     RETURNING id, title, notes, version`,
-    [preset.id, preset.title, preset.notes],
+    `INSERT INTO lesson_presets (id, title, notes, location) VALUES ($1, $2, $3, $4::jsonb)
+     RETURNING id, title, notes, location, version`,
+    [preset.id, preset.title, preset.notes, JSON.stringify(preset.location)],
   )) as LessonPreset[];
   return rows[0];
 }
@@ -114,9 +121,9 @@ export async function createLessonPreset(preset: LessonPreset): Promise<LessonPr
 export async function updateLessonPreset(preset: LessonPreset): Promise<LessonPreset | null> {
   await ensureSchema();
   const rows = (await sql().query(
-    `UPDATE lesson_presets SET title = $2, notes = $3, version = version + 1
-     WHERE id = $1 AND version = $4 RETURNING id, title, notes, version`,
-    [preset.id, preset.title, preset.notes, preset.version],
+    `UPDATE lesson_presets SET title = $2, notes = $3, version = version + 1, location = $5::jsonb
+     WHERE id = $1 AND version = $4 RETURNING id, title, notes, location, version`,
+    [preset.id, preset.title, preset.notes, preset.version, JSON.stringify(preset.location)],
   )) as LessonPreset[];
   return rows[0] ?? null;
 }
@@ -133,8 +140,8 @@ export async function deleteLessonPreset(id: string, version: number): Promise<b
 export async function createLesson(rule: LessonRule): Promise<LessonRule | null> {
   await ensureSchema();
   const rows = (await sql().query(
-    `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+    `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
      ON CONFLICT (id) DO NOTHING
      RETURNING ${RETURNING}`,
     [
@@ -145,6 +152,7 @@ export async function createLesson(rule: LessonRule): Promise<LessonRule | null>
       rule.endTime,
       rule.notes,
       JSON.stringify(rule.repeat),
+      JSON.stringify(rule.location),
     ],
   )) as LessonRow[];
   return rows[0] ? mapRow(rows[0]) : null;
@@ -155,7 +163,7 @@ export async function updateLesson(rule: LessonRule): Promise<LessonRule | null>
   const rows = (await sql().query(
     `UPDATE lessons
      SET title = $2, start_date = $3, start_time = $4, end_time = $5,
-         notes = $6, repeat_rule = $7::jsonb, version = version + 1, updated_at = NOW()
+         notes = $6, repeat_rule = $7::jsonb, location = $9::jsonb, version = version + 1, updated_at = NOW()
      WHERE id = $1 AND version = $8
      RETURNING ${RETURNING}`,
     [
@@ -167,6 +175,7 @@ export async function updateLesson(rule: LessonRule): Promise<LessonRule | null>
       rule.notes,
       JSON.stringify(rule.repeat),
       rule.version,
+      JSON.stringify(rule.location),
     ],
   )) as LessonRow[];
   return rows[0] ? mapRow(rows[0]) : null;
@@ -185,12 +194,45 @@ export async function splitLesson(
   previous: LessonRule,
   next: LessonRule,
 ): Promise<{ previous: LessonRule; next: LessonRule } | null> {
-  const created = await createLesson(next);
-  if (!created) return null;
-  const updated = await updateLesson(previous);
-  if (!updated) {
-    await sql().query("DELETE FROM lessons WHERE id = $1", [created.id]);
-    return null;
-  }
-  return { previous: updated, next: created };
+  await ensureSchema();
+  const rows = (await sql()
+    .query(
+      `WITH updated AS (
+      UPDATE lessons
+      SET title = $2, start_date = $3, start_time = $4, end_time = $5,
+          notes = $6, repeat_rule = $7::jsonb, location = $9::jsonb,
+          version = version + 1, updated_at = NOW()
+      WHERE id = $1 AND version = $8 RETURNING ${RETURNING}
+    ), created AS (
+      INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location)
+      SELECT $10, $11, $12::date, $13, $14, $15, $16::jsonb, $17::jsonb
+      FROM updated RETURNING ${RETURNING}
+    )
+    SELECT row_to_json(updated) AS previous, row_to_json(created) AS next
+    FROM updated CROSS JOIN created`,
+      [
+        previous.id,
+        previous.title,
+        previous.startDate,
+        previous.startTime,
+        previous.endTime,
+        previous.notes,
+        JSON.stringify(previous.repeat),
+        previous.version,
+        JSON.stringify(previous.location),
+        next.id,
+        next.title,
+        next.startDate,
+        next.startTime,
+        next.endTime,
+        next.notes,
+        JSON.stringify(next.repeat),
+        JSON.stringify(next.location),
+      ],
+    )
+    .catch((error: unknown) => {
+      if (isRecord(error) && error.code === "23505") return [];
+      throw error;
+    })) as Array<{ previous: LessonRow; next: LessonRow }>;
+  return rows[0] ? { previous: mapRow(rows[0].previous), next: mapRow(rows[0].next) } : null;
 }

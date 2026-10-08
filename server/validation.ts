@@ -1,4 +1,4 @@
-/** Validate lesson rules and reusable name/notes presets at the API boundary. */
+/** Validate lesson rules, student defaults, and places at the API boundary. */
 
 import {
   isGeneratedOccurrenceDate,
@@ -8,18 +8,29 @@ import {
 } from "../src/lib/repeat.js";
 import type { LessonPreset, LessonRule, RepeatRule } from "../src/types/lesson.js";
 import { RequestError } from "./http.js";
+import { parseLocation } from "../src/lib/location.js";
+
+function validatedLocation(value: unknown) {
+  try {
+    return parseLocation(value);
+  } catch (error) {
+    throw new RequestError(400, error instanceof Error ? error.message : "地点数据无效");
+  }
+}
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^(?:0\d|1\d|2[0-3]):[0-5]\d$/;
 
-export function parseLessonPreset(value: unknown): Pick<LessonPreset, "title" | "notes"> {
+export function parseLessonPreset(
+  value: unknown,
+): Pick<LessonPreset, "title" | "notes" | "location"> {
   if (!isRecord(value) || typeof value.title !== "string" || typeof value.notes !== "string") {
     throw new RequestError(400, "常用项数据无效");
   }
   const title = value.title.trim();
   if (!title || title.length > 200) throw new RequestError(400, "名称须为 1 至 200 个字符");
   if (value.notes.length > 10_000) throw new RequestError(400, "备注过长");
-  return { title, notes: value.notes.trim() };
+  return { title, notes: value.notes.trim(), location: validatedLocation(value.location) };
 }
 
 export function parsePresetIdentity(value: unknown): Pick<LessonPreset, "id" | "version"> {
@@ -83,6 +94,12 @@ function parseRepeat(
     throw new RequestError(400, "重复结束日期无效");
   }
 
+  if (isRecord(value.exceptions)) {
+    for (const exception of Object.values(value.exceptions)) {
+      if (isRecord(exception) && exception.location !== undefined)
+        validatedLocation(exception.location);
+    }
+  }
   const repeat = normalizeRepeat(value);
   if (!repeat) throw new RequestError(400, "重复规则无效");
 
@@ -94,6 +111,7 @@ function parseRepeat(
     startTime,
     endTime,
     notes: "",
+    location: null,
     repeat,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -175,6 +193,7 @@ export function parseLessonRule(value: unknown): LessonRule {
     startTime,
     endTime,
     notes: (value.notes as string).trim(),
+    location: validatedLocation(value.location),
     repeat,
     createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),

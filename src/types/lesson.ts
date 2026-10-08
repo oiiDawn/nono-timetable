@@ -5,11 +5,21 @@ export type RepeatFreq = "daily" | "weekly";
 export type RepeatPreset = "none" | "daily" | "weekly" | "custom";
 export type Weekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
 
+export interface LessonLocation {
+  name: string;
+  address: string;
+  detail: string;
+  poiId?: string;
+  longitude?: number;
+  latitude?: number;
+}
+
 export interface LessonPreset {
   id: string;
   version: number;
   title: string;
   notes: string;
+  location: LessonLocation | null;
 }
 
 export interface OccurrenceException {
@@ -18,6 +28,7 @@ export interface OccurrenceException {
   endTime: string;
   title?: string;
   notes?: string;
+  location?: LessonLocation | null;
 }
 
 export interface RepeatRule {
@@ -39,6 +50,7 @@ export interface LessonRule {
   startTime: string;
   endTime: string;
   notes: string;
+  location: LessonLocation | null;
   repeat: RepeatRule | null;
   createdAt: string;
   updatedAt: string;
@@ -52,6 +64,7 @@ export interface LessonInstance {
   startTime: string;
   endTime: string;
   notes: string;
+  location: LessonLocation | null;
   isRecurring: boolean;
   isException: boolean;
 }
@@ -62,6 +75,8 @@ export interface LessonFormValues {
   startTime: string;
   endTime: string;
   notes: string;
+  location: LessonLocation | null;
+  locationAction?: "set" | "inherit";
   repeatPreset: RepeatPreset;
   freq: RepeatFreq;
   interval: number;

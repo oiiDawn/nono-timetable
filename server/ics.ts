@@ -1,7 +1,8 @@
-/** Apple Calendar feed: RRULE, EXDATE, and per-occurrence exceptions. */
+/** Generate calendar subscriptions with recurrence overrides, places, and map links. */
 
 import { normalizeRule } from "../src/lib/repeat.js";
-import type { LessonRule } from "../src/types/lesson.js";
+import type { LessonLocation, LessonRule } from "../src/types/lesson.js";
+import { locationMapUrl, locationText } from "../src/lib/location.js";
 
 const encoder = new TextEncoder();
 
@@ -76,7 +77,12 @@ function appendEvent(
   date: string,
   startTime: string,
   endTime: string,
-  options?: { recurrenceId?: string; title?: string; notes?: string },
+  options?: {
+    recurrenceId?: string;
+    title?: string;
+    notes?: string;
+    location?: LessonLocation | null;
+  },
 ): void {
   lines.push(
     "BEGIN:VEVENT",
@@ -90,12 +96,19 @@ function appendEvent(
       `RECURRENCE-ID;TZID=Asia/Shanghai:${localDateTime(options.recurrenceId, rule.startTime)}`,
     );
   }
+  const location = options?.location === undefined ? rule.location : options.location;
+  const mapUrl = location ? locationMapUrl(location) : "";
+  const notes = options?.notes ?? rule.notes;
+  const description = [notes, mapUrl ? `地图：${mapUrl}` : ""].filter(Boolean).join("\n\n");
   lines.push(
     `DTSTART;TZID=Asia/Shanghai:${localDateTime(date, startTime)}`,
     `DTEND;TZID=Asia/Shanghai:${localDateTime(date, endTime)}`,
     `SUMMARY:${escapeText(options?.title ?? rule.title)}`,
-    `DESCRIPTION:${escapeText(options?.notes ?? rule.notes)}`,
+    `DESCRIPTION:${escapeText(description)}`,
   );
+  if (location || options?.recurrenceId) {
+    lines.push(`LOCATION:${escapeText(locationText(location))}`, `URL:${mapUrl}`);
+  }
 }
 
 export function generateCalendar(rules: LessonRule[]): string {
@@ -134,6 +147,7 @@ export function generateCalendar(rules: LessonRule[]): string {
         recurrenceId: originalDate,
         title: exception.title,
         notes: exception.notes,
+        location: exception.location,
       });
       lines.push("STATUS:CONFIRMED", "END:VEVENT");
     }

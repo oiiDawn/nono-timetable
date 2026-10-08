@@ -27,6 +27,7 @@ const baseRule: LessonRule = {
   startTime: "09:00",
   endTime: "10:00",
   notes: "",
+  location: null,
   repeat: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",
@@ -168,6 +169,7 @@ describe("schedule", () => {
       startTime: "09:00",
       endTime: "10:00",
       notes: "",
+      location: null,
       isRecurring: false,
       isException: false,
     };
@@ -179,6 +181,7 @@ describe("schedule", () => {
       startTime: "09:30",
       endTime: "10:30",
       notes: "",
+      location: null,
       isRecurring: false,
       isException: false,
     };
@@ -194,6 +197,7 @@ describe("schedule", () => {
       startTime: "09:00",
       endTime: "10:00",
       notes: "",
+      location: null,
       repeatPreset: "none",
       freq: "weekly",
       interval: 1,
@@ -213,6 +217,7 @@ describe("schedule", () => {
       startTime: "07:45",
       endTime: "10:00",
       notes: "",
+      location: null,
       repeatPreset: "none",
       freq: "weekly",
       interval: 1,
@@ -250,6 +255,7 @@ describe("schedule", () => {
       startTime: "09:00",
       endTime: "10:00",
       notes: "",
+      location: null,
       isRecurring: false,
       isException: false,
     };
@@ -261,6 +267,7 @@ describe("schedule", () => {
       startTime: "09:30",
       endTime: "10:30",
       notes: "",
+      location: null,
       isRecurring: false,
       isException: false,
     };

@@ -1,10 +1,12 @@
-/** Manage saved student names and default notes without changing existing lessons. */
+/** Manage student names, default places, and notes without changing saved lessons. */
 
 import { Button, Form, Input, Label, Modal, TextArea, TextField, toast } from "@heroui/react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fetchLessonPresets, removeLessonPreset, saveLessonPreset } from "@/lib/api";
 import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
+import { LocationPicker } from "@/components/LocationPicker";
+import { locationText } from "@/lib/location";
 import type { LessonPreset } from "@/types/lesson";
 
 export function StudentManager({ onClose }: { onClose: () => void }) {
@@ -15,7 +17,9 @@ export function StudentManager({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [editing, setEditing] = useState<LessonPreset | null>(null);
-  const [draft, setDraft] = useState<Pick<LessonPreset, "title" | "notes"> | null>(null);
+  const [draft, setDraft] = useState<Pick<LessonPreset, "title" | "notes" | "location"> | null>(
+    null,
+  );
   const [deleting, setDeleting] = useState<LessonPreset | null>(null);
 
   useEffect(() => {
@@ -120,6 +124,11 @@ export function StudentManager({ onClose }: { onClose: () => void }) {
                     <Label>学生姓名</Label>
                     <Input maxLength={200} autoFocus />
                   </TextField>
+                  <LocationPicker
+                    value={draft.location}
+                    isDisabled={saving}
+                    onChange={(location) => setDraft({ ...draft, location })}
+                  />
                   <TextField
                     value={draft.notes}
                     isDisabled={saving}
@@ -144,6 +153,11 @@ export function StudentManager({ onClose }: { onClose: () => void }) {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-medium break-words">{student.title}</p>
+                        {student.location ? (
+                          <p className="text-sm break-words text-muted">
+                            {locationText(student.location)}
+                          </p>
+                        ) : null}
                         {student.notes ? (
                           <p className="text-sm break-words whitespace-pre-wrap text-muted">
                             {student.notes}
@@ -159,7 +173,11 @@ export function StudentManager({ onClose }: { onClose: () => void }) {
                         aria-label={`编辑学生 ${student.title}`}
                         onPress={() => {
                           setEditing(student);
-                          setDraft({ title: student.title, notes: student.notes });
+                          setDraft({
+                            title: student.title,
+                            notes: student.notes,
+                            location: student.location,
+                          });
                           setError(null);
                         }}
                       >
@@ -247,7 +265,7 @@ export function StudentManager({ onClose }: { onClose: () => void }) {
                     isDisabled={loading || Boolean(error)}
                     onPress={() => {
                       setEditing(null);
-                      setDraft({ title: "", notes: "" });
+                      setDraft({ title: "", notes: "", location: null });
                       setError(null);
                     }}
                   >

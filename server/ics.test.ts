@@ -1,3 +1,5 @@
+/** Verify calendar locations and recurrence identity, escaping, and UTF-8 folding. */
+
 import { describe, expect, it } from "vitest";
 import type { LessonRule } from "../src/types/lesson";
 import { generateCalendar } from "./ics";
@@ -10,12 +12,60 @@ const baseRule: LessonRule = {
   startTime: "09:00",
   endTime: "10:00",
   notes: "带教材;\n复习第一章",
+  location: null,
   repeat: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-17T01:02:03.000Z",
 };
 
 describe("generateCalendar", () => {
+  it("exports selected, inherited, and cleared places with stable recurrence identity", () => {
+    const location = {
+      name: "图书馆",
+      address: "杭州市" + "中文地址".repeat(25),
+      detail: "302;教室",
+      longitude: 120.21,
+      latitude: 30.24,
+      poiId: "B1",
+    };
+    const rule: LessonRule = {
+      ...baseRule,
+      location,
+      repeat: {
+        freq: "daily",
+        interval: 1,
+        endType: "count",
+        endCount: 4,
+        exceptions: {
+          "2026-07-21": { date: "2026-07-21", startTime: "11:00", endTime: "12:00" },
+          "2026-07-22": {
+            date: "2026-07-22",
+            startTime: "09:00",
+            endTime: "10:00",
+            location: { name: "学生家", address: "杭州市上城区", detail: "" },
+          },
+          "2026-07-23": {
+            date: "2026-07-23",
+            startTime: "09:00",
+            endTime: "10:00",
+            location: null,
+          },
+        },
+      },
+    };
+    const calendar = generateCalendar([rule]);
+    const events = calendar.replace(/\r\n /g, "").split("BEGIN:VEVENT").slice(1);
+    expect(events[0]).toContain("LOCATION:图书馆");
+    expect(events[1]).toContain("LOCATION:图书馆");
+    expect(events[1]).toContain("coordinate=gaode");
+    expect(events[2]).toContain("LOCATION:学生家");
+    expect(events[2]).toContain("https://uri.amap.com/search?");
+    expect(events[3]).toContain("LOCATION:\r\nURL:\r\n");
+    expect(events[3]).not.toContain("uri.amap.com");
+    expect(events.every((event) => event.includes("UID:rule-1@nono-timetable"))).toBe(true);
+    for (const line of calendar.split("\r\n"))
+      expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+  });
   it("generates an Apple-compatible Shanghai event without alarms", () => {
     const calendar = generateCalendar([baseRule]);
 

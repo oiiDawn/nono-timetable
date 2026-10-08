@@ -18,6 +18,7 @@ import {
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { StudentPicker } from "@/components/StudentPicker";
+import { LocationPicker } from "@/components/LocationPicker";
 import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import {
   DEFAULT_REPEAT_COUNT,
@@ -32,7 +33,13 @@ import {
   getScheduleTimeOptions,
   validateFormValues,
 } from "@/lib/schedule";
-import type { ConflictInfo, LessonFormValues, RepeatPreset, Weekday } from "@/types/lesson";
+import type {
+  ConflictInfo,
+  LessonFormValues,
+  LessonLocation,
+  RepeatPreset,
+  Weekday,
+} from "@/types/lesson";
 
 interface LessonFormProps {
   open: boolean;
@@ -40,6 +47,7 @@ interface LessonFormProps {
   initialValues: LessonFormValues;
   conflicts: ConflictInfo[];
   showStudents: boolean;
+  seriesLocation?: LessonLocation | null;
   onDelete?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: LessonFormValues) => void;
@@ -100,6 +108,7 @@ export function LessonForm({
   initialValues,
   conflicts,
   showStudents,
+  seriesLocation,
   onDelete,
   onOpenChange,
   onSubmit,
@@ -223,6 +232,8 @@ export function LessonForm({
                         ...current,
                         title: student.title,
                         notes: student.notes,
+                        location: student.location,
+                        locationAction: "set",
                       }));
                     }}
                   />
@@ -261,6 +272,31 @@ export function LessonForm({
                     onChange={(endTime) => update("endTime", endTime)}
                   />
                 </div>
+
+                <LocationPicker
+                  value={values.location}
+                  onChange={(location) => {
+                    setValidationError(null);
+                    setValues((current) => ({ ...current, location, locationAction: "set" }));
+                  }}
+                />
+                {seriesLocation !== undefined ? (
+                  <Button
+                    type="button"
+                    variant="tertiary"
+                    size="sm"
+                    className="self-start"
+                    onPress={() => {
+                      setValues((current) => ({
+                        ...current,
+                        location: seriesLocation,
+                        locationAction: "inherit",
+                      }));
+                    }}
+                  >
+                    使用系列地点
+                  </Button>
+                ) : null}
 
                 <TextField
                   fullWidth

@@ -1,6 +1,7 @@
 /** Recurrence expansion, exceptions, truncation, and series splits. */
 
 import { addDays, formatDate, getWeekStart, parseDate } from "./dates.js";
+import { parseLocation } from "./location.js";
 import type {
   LessonFormValues,
   LessonRule,
@@ -50,6 +51,7 @@ function parseException(value: unknown): OccurrenceException | null {
   const exception: OccurrenceException = { date, startTime, endTime };
   if (typeof title === "string") exception.title = title;
   if (typeof notes === "string") exception.notes = notes;
+  if (value.location !== undefined) exception.location = parseLocation(value.location);
   return exception;
 }
 
@@ -134,6 +136,7 @@ export function normalizeRepeat(value: unknown): RepeatRule | null {
 }
 
 export function normalizeRule(rule: LessonRule): LessonRule {
+  rule = { ...rule, location: rule.location ?? null };
   const repeat = normalizeRepeat(rule.repeat);
   if (!repeat) return { ...rule, repeat: null };
   if (repeat.freq === "weekly") {
@@ -263,7 +266,8 @@ export function exceptionMatchesSeries(
     exception.startTime === rule.startTime &&
     exception.endTime === rule.endTime &&
     (exception.title === undefined || exception.title === rule.title) &&
-    (exception.notes === undefined || exception.notes === rule.notes)
+    (exception.notes === undefined || exception.notes === rule.notes) &&
+    exception.location === undefined
   );
 }
 
@@ -279,6 +283,7 @@ function storedException(rule: LessonRule, patch: OccurrenceException): Occurren
   if (patch.notes !== undefined && patch.notes !== rule.notes) {
     exception.notes = patch.notes;
   }
+  if (patch.location !== undefined) exception.location = patch.location;
   return exception;
 }
 
@@ -305,6 +310,27 @@ export function setOccurrenceException(
     ...normalized.repeat,
     exceptions,
     excludedDates,
+  });
+}
+
+/** Apply one lesson edit without turning an inherited place into a fixed override. */
+export function applyOccurrenceEdit(
+  rule: LessonRule,
+  originalDate: string,
+  values: LessonFormValues,
+): LessonRule {
+  return setOccurrenceException(rule, originalDate, {
+    date: values.startDate,
+    startTime: values.startTime,
+    endTime: values.endTime,
+    title: values.title.trim(),
+    notes: values.notes.trim(),
+    location:
+      values.locationAction === "inherit"
+        ? undefined
+        : values.locationAction === "set"
+          ? values.location
+          : rule.repeat?.exceptions?.[originalDate]?.location,
   });
 }
 
@@ -388,6 +414,7 @@ export function splitSeries(
   rule: LessonRule,
   originalDate: string,
   nextMaster: LessonRule,
+  locationAction?: LessonFormValues["locationAction"],
 ): { previous: LessonRule; next: LessonRule } {
   const previous = truncateRuleBefore(rule, originalDate);
   if (!previous) {
@@ -402,13 +429,29 @@ export function splitSeries(
     (date) => date > originalDate,
   );
 
+  nextMaster = {
+    ...nextMaster,
+    location: locationAction === "set" ? nextMaster.location : normalized.location,
+  };
+  const currentLocation = normalized.repeat?.exceptions?.[originalDate]?.location;
+
   let nextRepeat = nextMaster.repeat;
   if (nextRepeat) {
+    if (locationAction === undefined && currentLocation !== undefined) {
+      movedExceptions[nextMaster.startDate] = {
+        date: nextMaster.startDate,
+        startTime: nextMaster.startTime,
+        endTime: nextMaster.endTime,
+        location: currentLocation,
+      };
+    }
     nextRepeat = {
       ...nextRepeat,
       exceptions: movedExceptions,
       excludedDates: movedExcluded,
     };
+  } else if (locationAction === undefined && currentLocation !== undefined) {
+    nextMaster = { ...nextMaster, location: currentLocation };
   }
 
   const next = reconcileExceptions({
@@ -422,7 +465,11 @@ export function splitSeries(
 
 export function applyAllEventsEdit(
   rule: LessonRule,
-  values: Pick<LessonRule, "title" | "startDate" | "startTime" | "endTime" | "notes" | "repeat">,
+  values: Pick<
+    LessonRule,
+    "title" | "startDate" | "startTime" | "endTime" | "notes" | "repeat" | "location"
+  > &
+    Pick<LessonFormValues, "locationAction">,
   originalDate: string,
 ): { rule: LessonRule; invalidDates: string[] } {
   const normalized = normalizeRule(rule);
@@ -434,6 +481,7 @@ export function applyAllEventsEdit(
     startTime: values.startTime,
     endTime: values.endTime,
     notes: values.notes,
+    location: values.locationAction === "set" ? values.location : normalized.location,
     startDate:
       first && values.startDate !== movedFirstDate ? values.startDate : normalized.startDate,
     repeat: values.repeat
@@ -445,6 +493,13 @@ export function applyAllEventsEdit(
       : null,
     updatedAt: new Date().toISOString(),
   };
+  if (values.locationAction === "inherit" && next.repeat?.exceptions?.[originalDate]) {
+    const { location: _location, ...exception } = next.repeat.exceptions[originalDate];
+    next.repeat = {
+      ...next.repeat,
+      exceptions: { ...next.repeat.exceptions, [originalDate]: exception },
+    };
+  }
   if (next.repeat?.freq === "weekly") {
     next.repeat.byWeekdays = ensureStartWeekday(next.startDate, next.repeat.byWeekdays ?? []);
   }
