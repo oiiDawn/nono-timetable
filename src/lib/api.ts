@@ -1,4 +1,6 @@
-import type { LessonRule } from "@/types/lesson";
+/** Call authenticated cloud APIs and expose actionable server errors. */
+
+import type { LessonPreset, LessonRule } from "@/types/lesson";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,6 +44,29 @@ export async function logout(): Promise<void> {
 export async function fetchLessons(): Promise<LessonRule[]> {
   const result = await requestJson<{ lessons: LessonRule[] }>("/api/lessons");
   return result.lessons;
+}
+
+export async function fetchLessonPresets(): Promise<LessonPreset[]> {
+  const result = await requestJson<{ presets: LessonPreset[] }>("/api/lesson-presets");
+  return result.presets;
+}
+
+export async function saveLessonPreset(
+  values: Pick<LessonPreset, "title" | "notes">,
+  existing?: LessonPreset,
+): Promise<LessonPreset> {
+  const result = await requestJson<{ preset: LessonPreset }>("/api/lesson-presets", {
+    method: existing ? "PUT" : "POST",
+    body: JSON.stringify({ ...existing, ...values }),
+  });
+  return result.preset;
+}
+
+export async function removeLessonPreset(preset: LessonPreset): Promise<void> {
+  await requestJson("/api/lesson-presets", {
+    method: "DELETE",
+    body: JSON.stringify({ id: preset.id, version: preset.version }),
+  });
 }
 
 export async function createLesson(rule: LessonRule): Promise<LessonRule> {

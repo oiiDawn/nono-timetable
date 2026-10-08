@@ -1,4 +1,4 @@
-/** Request body parsing for lesson rules. */
+/** Validate lesson rules and reusable name/notes presets at the API boundary. */
 
 import {
   isGeneratedOccurrenceDate,
@@ -6,11 +6,35 @@ import {
   normalizeRepeat,
   normalizeRule,
 } from "../src/lib/repeat.js";
-import type { LessonRule, RepeatRule } from "../src/types/lesson.js";
+import type { LessonPreset, LessonRule, RepeatRule } from "../src/types/lesson.js";
 import { RequestError } from "./http.js";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^(?:0\d|1\d|2[0-3]):[0-5]\d$/;
+
+export function parseLessonPreset(value: unknown): Pick<LessonPreset, "title" | "notes"> {
+  if (!isRecord(value) || typeof value.title !== "string" || typeof value.notes !== "string") {
+    throw new RequestError(400, "常用项数据无效");
+  }
+  const title = value.title.trim();
+  if (!title || title.length > 200) throw new RequestError(400, "名称须为 1 至 200 个字符");
+  if (value.notes.length > 10_000) throw new RequestError(400, "备注过长");
+  return { title, notes: value.notes.trim() };
+}
+
+export function parsePresetIdentity(value: unknown): Pick<LessonPreset, "id" | "version"> {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    !value.id ||
+    value.id.length > 200 ||
+    !Number.isSafeInteger(value.version) ||
+    (value.version as number) < 1
+  ) {
+    throw new RequestError(400, "常用项 ID 或版本无效");
+  }
+  return { id: value.id, version: value.version as number };
+}
 
 function isValidDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;

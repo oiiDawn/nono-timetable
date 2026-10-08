@@ -6,6 +6,7 @@
 
 - 周视图查看课表，点击日期查看当天详情
 - 新增、编辑、删除课程
+- 加课时保存、点选和管理常用名称与备注，多端共用；常用项变更不影响已保存课程
 - 单节课支持每 N 天重复，可按循环次数或结束日期结束
 - 时间冲突提醒（允许继续保存）
 - 单密码登录，多端共享云端课表
@@ -27,7 +28,7 @@ CALENDAR_FEED_TOKEN=<至少 32 字节的随机值>
 npm run hash-password -- "你的个人密码"
 ```
 
-`SESSION_SECRET` 和 `CALENDAR_FEED_TOKEN` 应分别生成，不能复用。首次 API 请求会自动创建 `lessons` 表。
+`SESSION_SECRET` 和 `CALENDAR_FEED_TOKEN` 应分别生成，不能复用。首次数据 API 请求会自动创建 `lessons` 和 `lesson_presets` 表。
 
 ## 开发
 

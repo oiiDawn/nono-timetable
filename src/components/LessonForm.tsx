@@ -1,4 +1,4 @@
-/** Create and edit a lesson, including Apple-style repeat presets. */
+/** Create and edit lessons with repeat settings and reusable name/notes presets. */
 
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
   ToggleButtonGroup,
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import { LessonPresets } from "@/components/LessonPresets";
 import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import {
   DEFAULT_REPEAT_COUNT,
@@ -38,6 +39,7 @@ interface LessonFormProps {
   title: string;
   initialValues: LessonFormValues;
   conflicts: ConflictInfo[];
+  showPresets: boolean;
   onDelete?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: LessonFormValues) => void;
@@ -97,6 +99,7 @@ export function LessonForm({
   title,
   initialValues,
   conflicts,
+  showPresets,
   onDelete,
   onOpenChange,
   onSubmit,
@@ -202,6 +205,20 @@ export function LessonForm({
               </Modal.Header>
 
               <Modal.Body className="flex flex-col gap-4">
+                {open && showPresets ? (
+                  <LessonPresets
+                    title={values.title}
+                    notes={values.notes}
+                    onSelect={(preset) => {
+                      setValidationError(null);
+                      setValues((current) => ({
+                        ...current,
+                        title: preset.title,
+                        notes: preset.notes,
+                      }));
+                    }}
+                  />
+                ) : null}
                 <TextField
                   isRequired
                   fullWidth

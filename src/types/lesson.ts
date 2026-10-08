@@ -1,9 +1,16 @@
-/** Lesson series, generated instances, and form state for the timetable. */
+/** Lesson series, generated instances, reusable presets, and timetable form state. */
 
 export type RepeatEndType = "count" | "date";
 export type RepeatFreq = "daily" | "weekly";
 export type RepeatPreset = "none" | "daily" | "weekly" | "custom";
 export type Weekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+
+export interface LessonPreset {
+  id: string;
+  version: number;
+  title: string;
+  notes: string;
+}
 
 export interface OccurrenceException {
   date: string;

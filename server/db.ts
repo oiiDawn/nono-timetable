@@ -1,6 +1,8 @@
+/** Persist cloud lessons and reusable name/notes presets with optimistic version checks. */
+
 import { neon } from "@neondatabase/serverless";
 import { normalizeRepeat } from "../src/lib/repeat.js";
-import type { LessonRule, RepeatRule } from "../src/types/lesson.js";
+import type { LessonPreset, LessonRule, RepeatRule } from "../src/types/lesson.js";
 
 interface LessonRow {
   id: string;
@@ -45,6 +47,17 @@ export function ensureSchema(): Promise<unknown> {
       )
     `,
     )
+    .then(() =>
+      sql().query(`
+      CREATE TABLE IF NOT EXISTS lesson_presets (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
+        notes TEXT NOT NULL DEFAULT '' CHECK (length(notes) <= 10000),
+        version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `),
+    )
     .catch((error: unknown) => {
       schemaPromise = undefined;
       throw error;
@@ -79,6 +92,42 @@ export async function listLessons(): Promise<LessonRule[]> {
     `SELECT ${RETURNING} FROM lessons ORDER BY start_date, start_time, id`,
   )) as LessonRow[];
   return rows.map(mapRow);
+}
+
+export async function listLessonPresets(): Promise<LessonPreset[]> {
+  await ensureSchema();
+  return (await sql().query(
+    "SELECT id, title, notes, version FROM lesson_presets ORDER BY created_at, id",
+  )) as LessonPreset[];
+}
+
+export async function createLessonPreset(preset: LessonPreset): Promise<LessonPreset> {
+  await ensureSchema();
+  const rows = (await sql().query(
+    `INSERT INTO lesson_presets (id, title, notes) VALUES ($1, $2, $3)
+     RETURNING id, title, notes, version`,
+    [preset.id, preset.title, preset.notes],
+  )) as LessonPreset[];
+  return rows[0];
+}
+
+export async function updateLessonPreset(preset: LessonPreset): Promise<LessonPreset | null> {
+  await ensureSchema();
+  const rows = (await sql().query(
+    `UPDATE lesson_presets SET title = $2, notes = $3, version = version + 1
+     WHERE id = $1 AND version = $4 RETURNING id, title, notes, version`,
+    [preset.id, preset.title, preset.notes, preset.version],
+  )) as LessonPreset[];
+  return rows[0] ?? null;
+}
+
+export async function deleteLessonPreset(id: string, version: number): Promise<boolean> {
+  await ensureSchema();
+  const rows = await sql().query(
+    "DELETE FROM lesson_presets WHERE id = $1 AND version = $2 RETURNING id",
+    [id, version],
+  );
+  return rows.length === 1;
 }
 
 export async function createLesson(rule: LessonRule): Promise<LessonRule | null> {

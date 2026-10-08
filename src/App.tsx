@@ -609,6 +609,7 @@ export default function App() {
         title={formMode === "create" ? "新增课程" : "编辑课程"}
         initialValues={formValues}
         conflicts={pendingConflicts}
+        showPresets={formMode === "create"}
         onDelete={formMode === "edit" ? handleDelete : undefined}
         onOpenChange={(open) => {
           if (!open) closeForm();
