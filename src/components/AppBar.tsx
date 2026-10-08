@@ -1,7 +1,7 @@
-/** Responsive app bar: brand plus global icon actions (subscribe, today, theme, logout). */
+/** Responsive app bar with student management and global calendar actions. */
 
 import { Button, Tooltip } from "@heroui/react";
-import { CalendarDays, Copy, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { CalendarDays, Copy, LogOut, Monitor, Moon, Sun, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { loadThemePreference, setThemePreference, type ThemePreference } from "@/lib/theme";
 
@@ -41,10 +41,12 @@ function IconAction({
 }
 
 export function AppBar({
+  onManageStudents,
   onCopySubscription,
   onGoToday,
   onLogout,
 }: {
+  onManageStudents: () => void;
   onCopySubscription: () => void;
   onGoToday: () => void;
   onLogout: () => void;
@@ -65,6 +67,9 @@ export function AppBar({
           <h1 className="truncate text-lg font-semibold">排课表</h1>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <IconAction label="学生管理" onPress={onManageStudents}>
+            <Users className="size-5" />
+          </IconAction>
           <IconAction label="复制订阅地址" onPress={onCopySubscription}>
             <Copy className="size-5" />
           </IconAction>

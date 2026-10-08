@@ -1,4 +1,4 @@
-/** Create and edit lessons with repeat settings and reusable name/notes presets. */
+/** Create and edit lessons with repeat settings and student selection. */
 
 import {
   Alert,
@@ -17,7 +17,7 @@ import {
   ToggleButtonGroup,
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
-import { LessonPresets } from "@/components/LessonPresets";
+import { StudentPicker } from "@/components/StudentPicker";
 import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import {
   DEFAULT_REPEAT_COUNT,
@@ -39,7 +39,7 @@ interface LessonFormProps {
   title: string;
   initialValues: LessonFormValues;
   conflicts: ConflictInfo[];
-  showPresets: boolean;
+  showStudents: boolean;
   onDelete?: () => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: LessonFormValues) => void;
@@ -99,7 +99,7 @@ export function LessonForm({
   title,
   initialValues,
   conflicts,
-  showPresets,
+  showStudents,
   onDelete,
   onOpenChange,
   onSubmit,
@@ -107,7 +107,6 @@ export function LessonForm({
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [values, setValues] = useState(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [presetFooter, setPresetFooter] = useState<HTMLDivElement | null>(null);
   const startTimeOptions = useMemo(() => getScheduleTimeOptions(), []);
   const endTimeOptions = useMemo(() => getEndTimeOptions(values.startTime), [values.startTime]);
   const startWeekday = weekdayFromDate(values.startDate);
@@ -216,17 +215,14 @@ export function LessonForm({
                   <Label>名称</Label>
                   <Input placeholder="小九、佑佑..." />
                 </TextField>
-                {open && showPresets ? (
-                  <LessonPresets
-                    title={values.title}
-                    notes={values.notes}
-                    footer={presetFooter}
-                    onSelect={(preset) => {
+                {open && showStudents ? (
+                  <StudentPicker
+                    onSelect={(student) => {
                       setValidationError(null);
                       setValues((current) => ({
                         ...current,
-                        title: preset.title,
-                        notes: preset.notes,
+                        title: student.title,
+                        notes: student.notes,
                       }));
                     }}
                   />
@@ -463,14 +459,17 @@ export function LessonForm({
                 ) : null}
               </Modal.Body>
 
-              <Modal.Footer className="flex-wrap justify-between gap-2">
+              <Modal.Footer className="flex-wrap gap-2">
                 {onDelete ? (
-                  <Button type="button" variant="danger-soft" onPress={onDelete}>
+                  <Button
+                    type="button"
+                    variant="danger-soft"
+                    className="mr-auto"
+                    onPress={onDelete}
+                  >
                     删除
                   </Button>
-                ) : (
-                  <div ref={setPresetFooter} />
-                )}
+                ) : null}
                 <div className="flex gap-2">
                   <Button type="button" variant="tertiary" onPress={() => onOpenChange(false)}>
                     取消

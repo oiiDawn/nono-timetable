@@ -1,4 +1,4 @@
-/** Timetable shell: calendar views, lesson editor, and recurrence save/delete scope. */
+/** Timetable shell with student management, lesson editing, and recurrence scopes. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,6 +19,7 @@ import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LessonForm } from "@/components/LessonForm";
 import { MobileDayView, MobileMonthView } from "@/components/MobileCalendar";
 import { MonthView } from "@/components/MonthView";
+import { StudentManager } from "@/components/StudentManager";
 import { WeekView } from "@/components/WeekView";
 import { addDays, formatDate, parseDate, startOfMonth } from "@/lib/dates";
 import {
@@ -110,6 +111,7 @@ export default function App() {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(() => formatDate(new Date()));
   const [formOpen, setFormOpen] = useState(false);
+  const [studentManagerOpen, setStudentManagerOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingInstance, setEditingInstance] = useState<LessonInstance | null>(null);
@@ -499,6 +501,7 @@ export default function App() {
       }
     >
       <AppBar
+        onManageStudents={() => setStudentManagerOpen(true)}
         onCopySubscription={() => void copySubscriptionUrl()}
         onGoToday={goToToday}
         onLogout={handleLogout}
@@ -604,12 +607,14 @@ export default function App() {
         </section>
       </main>
 
+      {studentManagerOpen ? <StudentManager onClose={() => setStudentManagerOpen(false)} /> : null}
+
       <LessonForm
         open={formOpen}
         title={formMode === "create" ? "新增课程" : "编辑课程"}
         initialValues={formValues}
         conflicts={pendingConflicts}
-        showPresets={formMode === "create"}
+        showStudents={formMode === "create"}
         onDelete={formMode === "edit" ? handleDelete : undefined}
         onOpenChange={(open) => {
           if (!open) closeForm();
