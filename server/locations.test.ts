@@ -1,8 +1,8 @@
 /** Verify private place searches, provider parsing, and safe failure responses. */
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createSessionCookie } from "../server/auth";
-import handler from "./locations";
+import { createSessionCookie } from "./auth.js";
+import handler from "../api/locations.js";
 
 const upstream = vi.fn();
 beforeEach(() => {

@@ -1,13 +1,13 @@
 /** Verify preset CRUD, validation, authentication, and stale-write protection. */
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createSessionCookie } from "../server/auth";
-import type { LessonPreset } from "../src/types/lesson";
-import { parseLessonPreset, parsePresetIdentity } from "../server/validation";
-import handler from "./lesson-presets";
+import { createSessionCookie } from "./auth.js";
+import type { LessonPreset } from "../src/types/lesson.js";
+import { parseLessonPreset, parsePresetIdentity } from "./validation.js";
+import handler from "../api/lesson-presets.js";
 
 const store = vi.hoisted(() => new Map<string, LessonPreset>());
-vi.mock("../server/db.js", () => ({
+vi.mock("./db.js", () => ({
   listLessonPresets: async () => [...store.values()],
   createLessonPreset: async (preset: LessonPreset) => {
     store.set(preset.id, preset);
