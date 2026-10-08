@@ -107,6 +107,7 @@ export function LessonForm({
   const isMobile = useMediaQuery(MOBILE_MEDIA_QUERY);
   const [values, setValues] = useState(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [presetFooter, setPresetFooter] = useState<HTMLDivElement | null>(null);
   const startTimeOptions = useMemo(() => getScheduleTimeOptions(), []);
   const endTimeOptions = useMemo(() => getEndTimeOptions(values.startTime), [values.startTime]);
   const startWeekday = weekdayFromDate(values.startDate);
@@ -205,20 +206,6 @@ export function LessonForm({
               </Modal.Header>
 
               <Modal.Body className="flex flex-col gap-4">
-                {open && showPresets ? (
-                  <LessonPresets
-                    title={values.title}
-                    notes={values.notes}
-                    onSelect={(preset) => {
-                      setValidationError(null);
-                      setValues((current) => ({
-                        ...current,
-                        title: preset.title,
-                        notes: preset.notes,
-                      }));
-                    }}
-                  />
-                ) : null}
                 <TextField
                   isRequired
                   fullWidth
@@ -229,6 +216,21 @@ export function LessonForm({
                   <Label>名称</Label>
                   <Input placeholder="小九、佑佑..." />
                 </TextField>
+                {open && showPresets ? (
+                  <LessonPresets
+                    title={values.title}
+                    notes={values.notes}
+                    footer={presetFooter}
+                    onSelect={(preset) => {
+                      setValidationError(null);
+                      setValues((current) => ({
+                        ...current,
+                        title: preset.title,
+                        notes: preset.notes,
+                      }));
+                    }}
+                  />
+                ) : null}
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <TextField
@@ -461,13 +463,13 @@ export function LessonForm({
                 ) : null}
               </Modal.Body>
 
-              <Modal.Footer className="justify-between">
+              <Modal.Footer className="flex-wrap justify-between gap-2">
                 {onDelete ? (
                   <Button type="button" variant="danger-soft" onPress={onDelete}>
                     删除
                   </Button>
                 ) : (
-                  <span />
+                  <div ref={setPresetFooter} />
                 )}
                 <div className="flex gap-2">
                   <Button type="button" variant="tertiary" onPress={() => onOpenChange(false)}>

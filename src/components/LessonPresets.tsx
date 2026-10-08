@@ -2,16 +2,19 @@
 
 import { Button, Input, Label, TextArea, TextField, toast } from "@heroui/react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { Pencil } from "lucide-react";
 import { fetchLessonPresets, removeLessonPreset, saveLessonPreset } from "@/lib/api";
 import type { LessonPreset } from "@/types/lesson";
 
 interface LessonPresetsProps {
   title: string;
   notes: string;
+  footer: HTMLDivElement | null;
   onSelect: (preset: LessonPreset) => void;
 }
 
-export function LessonPresets({ title, notes, onSelect }: LessonPresetsProps) {
+export function LessonPresets({ title, notes, footer, onSelect }: LessonPresetsProps) {
   const [presets, setPresets] = useState<LessonPreset[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -85,48 +88,55 @@ export function LessonPresets({ title, notes, onSelect }: LessonPresetsProps) {
   };
 
   return (
-    <section aria-label="常用名称与备注" className="flex flex-col gap-2 rounded-xl bg-default p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">常用名称与备注</h3>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          isDisabled={busy || !title.trim()}
-          onPress={() => void save()}
-        >
-          保存为常用
-        </Button>
-      </div>
+    <section aria-label="常用名称与备注" className="flex flex-col gap-2">
+      {footer
+        ? createPortal(
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              isDisabled={busy || !title.trim()}
+              onPress={() => void save()}
+            >
+              保存为常用
+            </Button>,
+            footer,
+          )
+        : null}
       {loading ? (
         <p role="status" className="text-sm text-muted">
           正在加载常用项…
         </p>
       ) : presets.length === 0 ? (
-        <p className="text-sm text-muted">填写下方名称和备注后，即可保存为常用。</p>
+        <p className="text-sm text-muted">填写名称和备注后，可在底部保存为常用。</p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-wrap gap-2">
           {presets.map((preset) => (
-            <li key={preset.id} className="flex min-w-0 items-center gap-1">
+            <li
+              key={preset.id}
+              className="flex max-w-full min-w-0 items-center rounded-full bg-default"
+            >
               <Button
                 type="button"
                 variant="tertiary"
+                size="sm"
                 isDisabled={busy}
-                className="h-auto min-w-0 flex-1 justify-start py-2 text-left"
+                className="min-w-0 rounded-l-full rounded-r-none"
                 onPress={() => onSelect(preset)}
               >
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="break-all whitespace-normal">{preset.title}</span>
-                  {preset.notes ? (
-                    <span className="line-clamp-2 text-xs break-all whitespace-pre-wrap text-muted">
-                      {preset.notes}
-                    </span>
-                  ) : null}
+                <span
+                  className="truncate"
+                  title={preset.notes ? `${preset.title} · ${preset.notes}` : preset.title}
+                >
+                  {preset.title}
+                  {preset.notes ? <span className="text-muted"> · {preset.notes}</span> : null}
                 </span>
               </Button>
               <Button
                 type="button"
                 size="sm"
+                isIconOnly
+                className="shrink-0 rounded-l-none rounded-r-full"
                 variant="tertiary"
                 isDisabled={busy}
                 aria-label={`编辑常用项 ${preset.title}`}
@@ -136,7 +146,7 @@ export function LessonPresets({ title, notes, onSelect }: LessonPresetsProps) {
                   setError(null);
                 }}
               >
-                编辑
+                <Pencil className="size-3.5" />
               </Button>
             </li>
           ))}
