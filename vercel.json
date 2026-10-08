@@ -3,6 +3,7 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "regions": ["hkg1"],
   "rewrites": [
     {
       "source": "/calendar/:token.ics",
