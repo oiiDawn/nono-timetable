@@ -75,6 +75,9 @@ it("returns full place addresses, excludes missing coordinates, and does not ret
   ]);
   expect(JSON.stringify(body)).not.toContain("private-test-key");
   expect(upstream).toHaveBeenCalledTimes(1);
+  const searchUrl = upstream.mock.calls[0][0] as URL;
+  expect(searchUrl.searchParams.get("city")).toBe("610000");
+  expect(searchUrl.searchParams.get("citylimit")).toBe("true");
   expect(response.headers.get("Cache-Control")).toBe("no-store");
 });
 

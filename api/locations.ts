@@ -33,6 +33,8 @@ export default {
       const url = new URL("https://restapi.amap.com/v3/place/text");
       url.searchParams.set("key", key);
       url.searchParams.set("keywords", body.query.trim());
+      url.searchParams.set("city", "610000");
+      url.searchParams.set("citylimit", "true");
       url.searchParams.set("offset", "10");
       url.searchParams.set("extensions", "base");
       let result: unknown;
