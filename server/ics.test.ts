@@ -57,14 +57,37 @@ describe("generateCalendar", () => {
     const events = calendar.replace(/\r\n /g, "").split("BEGIN:VEVENT").slice(1);
     expect(events[0]).toContain("LOCATION:图书馆");
     expect(events[1]).toContain("LOCATION:图书馆");
-    expect(events[1]).toContain("coordinate=gaode");
+    expect(events[1]).toContain("X-APPLE-STRUCTURED-LOCATION;");
+    expect(events[1].match(/GEO:[^\r]+/)?.[0]).toBe(events[0].match(/GEO:[^\r]+/)?.[0]);
     expect(events[2]).toContain("LOCATION:学生家");
-    expect(events[2]).toContain("https://uri.amap.com/search?");
-    expect(events[3]).toContain("LOCATION:\r\nURL:\r\n");
-    expect(events[3]).not.toContain("uri.amap.com");
+    expect(events[2]).not.toContain("X-APPLE-STRUCTURED-LOCATION");
+    expect(events[3]).toContain("LOCATION:\r\n");
+    expect(events[3]).not.toContain("GEO:");
     expect(events.every((event) => event.includes("UID:rule-1@nono-timetable"))).toBe(true);
     for (const line of calendar.split("\r\n"))
       expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+  });
+  it("exports matching location labels and the device-validated WGS-84 coordinates", () => {
+    const calendar = generateCalendar([
+      {
+        ...baseRule,
+        location: {
+          name: '高新诚园 "东门"^',
+          address: "陕西省西安市雁塔区电子四路",
+          detail: "302;教室",
+          longitude: 108.905595,
+          latitude: 34.205872,
+        },
+      },
+    ]).replace(/\r\n /g, "");
+    expect(calendar).toContain(
+      'LOCATION:高新诚园 "东门"^ · 陕西省西安市雁塔区电子四路 · 302\\;教室\r\n',
+    );
+    expect(calendar).toContain(
+      `X-TITLE="高新诚园 ^'东门^'^^ · 陕西省西安市雁塔区电子四路 · 302;教室":geo:34.207516,108.901013\r\n`,
+    );
+    expect(calendar).toContain("GEO:34.207516;108.901013\r\n");
+    expect(calendar).toContain("DESCRIPTION:带教材\\;\\n复习第一章\r\n");
   });
   it("generates an Apple-compatible Shanghai event without alarms", () => {
     const calendar = generateCalendar([baseRule]);

@@ -1,8 +1,9 @@
-/** Generate calendar subscriptions with recurrence overrides, places, and map links. */
+/** Generate calendar subscriptions with recurrence overrides and Apple map locations. */
 
 import { normalizeRule } from "../src/lib/repeat.js";
 import type { LessonLocation, LessonRule } from "../src/types/lesson.js";
-import { locationMapUrl, locationText } from "../src/lib/location.js";
+import { locationText } from "../src/lib/location.js";
+import { calendarCoordinates } from "./calendar-coordinates.js";
 
 const encoder = new TextEncoder();
 
@@ -97,17 +98,24 @@ function appendEvent(
     );
   }
   const location = options?.location === undefined ? rule.location : options.location;
-  const mapUrl = location ? locationMapUrl(location) : "";
   const notes = options?.notes ?? rule.notes;
-  const description = [notes, mapUrl ? `地图：${mapUrl}` : ""].filter(Boolean).join("\n\n");
   lines.push(
     `DTSTART;TZID=Asia/Shanghai:${localDateTime(date, startTime)}`,
     `DTEND;TZID=Asia/Shanghai:${localDateTime(date, endTime)}`,
     `SUMMARY:${escapeText(options?.title ?? rule.title)}`,
-    `DESCRIPTION:${escapeText(description)}`,
+    `DESCRIPTION:${escapeText(notes)}`,
   );
   if (location || options?.recurrenceId) {
-    lines.push(`LOCATION:${escapeText(locationText(location))}`, `URL:${mapUrl}`);
+    const title = locationText(location).replace(/[\r\n]+/g, " ");
+    lines.push(`LOCATION:${escapeText(title)}`);
+    if (location?.longitude !== undefined && location.latitude !== undefined) {
+      const [longitude, latitude] = calendarCoordinates(location.longitude, location.latitude);
+      const parameter = title.replace(/\^/g, "^^").replace(/"/g, "^'");
+      lines.push(
+        `GEO:${latitude};${longitude}`,
+        `X-APPLE-STRUCTURED-LOCATION;VALUE=URI;X-APPLE-RADIUS=100;X-TITLE="${parameter}":geo:${latitude},${longitude}`,
+      );
+    }
   }
 }
 
