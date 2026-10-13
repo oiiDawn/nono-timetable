@@ -89,7 +89,7 @@ npm run dev
 
 ## 部署
 
-Cloudflare Pages 原生关联 GitHub 仓库 `oiiDawn/nono-timetable`，推送到 `main` 后自动构建并发布到 `https://nono-timetable.pages.dev`。构建命令为 `npm ci && npm test && npm run build`，输出目录为 `dist`，根目录为仓库根目录。控制台构建环境设置 `SKIP_DEPENDENCY_INSTALL=true`，由构建命令按 npm 锁文件安装依赖；`.node-version` 指定 Node.js 24。预览分支不自动部署，也不配置生产密钥。
+Cloudflare Pages 原生关联 GitHub 仓库 `oiiDawn/nono-timetable`，推送到 `main` 后自动构建并发布到 `https://nono-timetable.pages.dev`。构建命令为 `npm ci && npm test && npm run build`，输出目录为 `dist`，根目录为仓库根目录。构建命令按 npm 锁文件安装依赖；`.node-version` 指定 Node.js 24。预览分支不自动部署，也不配置生产密钥。
 
 `wrangler.jsonc` 定义 Pages 项目、运行时兼容日期和公开站点地址。`functions/[[path]].ts` 将 API、OAuth 发现与私密日历路由交给现有服务端处理；`public/_routes.json` 让静态资源直接由 Pages 提供。
 
