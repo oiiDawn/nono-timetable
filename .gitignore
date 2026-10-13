@@ -27,4 +27,6 @@ dist-ssr
 # Build
 dev-dist
 .vercel
+.wrangler
+.dev.vars*
 .env*

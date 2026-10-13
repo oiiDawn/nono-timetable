@@ -16,6 +16,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["api", "server"],
+  "include": ["api", "server", "functions"],
   "exclude": ["**/*.test.ts"]
 }

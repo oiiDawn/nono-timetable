@@ -4,13 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "hash-password": "node scripts/hash-password.mjs",
     "preview": "vite preview",
+    "dev:pages": "npm run build && wrangler pages dev --ip 127.0.0.1",
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -36,6 +37,7 @@
     "tailwindcss": "^4.1.11",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "4.149.0"
   }
 }

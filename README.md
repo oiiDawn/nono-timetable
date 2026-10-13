@@ -16,14 +16,14 @@
 
 ## 云端配置
 
-项目使用 Vercel Functions 和 Neon Postgres。先在 Vercel Marketplace 为项目添加 Neon，确保部署环境提供 `DATABASE_URL` 或 `POSTGRES_URL`，再配置：
+项目使用 Cloudflare Pages Functions 和 Neon Postgres。保留已有 Neon 数据库，在 Pages 项目的 Production 环境中配置 Secret `DATABASE_URL`（现有数据库连接串）以及以下密钥；密钥不能放进前端变量或提交到 Git：
 
 ```text
 APP_PASSWORD_HASH=scrypt$<salt>$<hash>
 SESSION_SECRET=<至少 32 字节的随机值>
 CALENDAR_FEED_TOKEN=<至少 32 字节的随机值>
 AMAP_KEY=<高德开放平台 Web 服务 API 类型 Key>
-PUBLIC_ORIGIN=https://你的课表域名
+PUBLIC_ORIGIN=https://nono-timetable.pages.dev
 ```
 
 生成密码哈希：
@@ -47,7 +47,7 @@ codex mcp add nono-timetable --url https://你的课表域名/api/mcp
 codex mcp login nono-timetable --scopes timetable
 ```
 
-浏览器会打开现有课表登录页；已登录时直接显示授权确认。允许后，客户端通过 OAuth 授权码与 PKCE 获取凭证。`PUBLIC_ORIGIN` 必须是实际访问的固定 HTTPS 域名，不带路径；本地验证允许 `http://127.0.0.1:端口`。OAuth 元数据通过 `vercel.json` 的 `.well-known` 重写公开，无需把网站密码、session cookie 或日历订阅 token 填入 Codex。
+浏览器会打开现有课表登录页；已登录时直接显示授权确认。允许后，客户端通过 OAuth 授权码与 PKCE 获取凭证。`PUBLIC_ORIGIN` 必须是实际访问的固定 HTTPS 域名，不带路径；本地验证允许 `http://127.0.0.1:端口`。OAuth 元数据通过 `functions/[[path]].ts` 的 `.well-known` 路由公开，无需把网站密码、session cookie 或日历订阅 token 填入 Codex。
 
 授权没有固定或闲置到期时间。访问令牌有效期 1 小时，客户端自动轮换刷新令牌；旧刷新令牌被重用时整组授权撤销。退出网站不会撤销授权，顶部“MCP 授权”可单独撤销连接，已发放的访问令牌也随即失效。更换网站密码或 `SESSION_SECRET` 不会自动撤销独立的 MCP 授权，应在该入口单独撤销。
 
@@ -85,7 +85,15 @@ npm install
 npm run dev
 ```
 
-本地联调 Vercel Functions 时使用 `vercel dev`，并在 `.env.local` 配置上述环境变量。
+本地联调使用 `npm run dev:pages`，在 Git 忽略的 `.dev.vars` 中配置开发环境密钥和 `PUBLIC_ORIGIN=http://127.0.0.1:8788`。请使用独立测试数据库，避免本地修改生产数据。`npm run dev` 只启动前端。
+
+## 部署
+
+Cloudflare Pages 原生关联 GitHub 仓库 `oiiDawn/nono-timetable`，推送到 `main` 后自动构建并发布到 `https://nono-timetable.pages.dev`。构建命令为 `npm ci && npm test && npm run build`，输出目录为 `dist`，根目录为仓库根目录。控制台构建环境设置 `SKIP_DEPENDENCY_INSTALL=true`，由构建命令按 npm 锁文件安装依赖；`.node-version` 指定 Node.js 24。预览分支不自动部署，也不配置生产密钥。
+
+`wrangler.jsonc` 定义 Pages 项目、运行时兼容日期和公开站点地址。`functions/[[path]].ts` 将 API、OAuth 发现与私密日历路由交给现有服务端处理；`public/_routes.json` 让静态资源直接由 Pages 提供。
+
+数据库保留在 Neon，不需要导出再导入，也不要删除管理该数据库的集成。本次迁移沿用原密码哈希和高德 key，重新生成了会话密钥与日历 token；新域名需要重新登录。日历订阅和 MCP 客户端需更新为新域名并重新授权。
 
 ## 构建
 
