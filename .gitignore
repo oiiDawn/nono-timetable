@@ -30,3 +30,5 @@ dev-dist
 .wrangler
 .dev.vars*
 .env*
+
+!.dev.vars.example

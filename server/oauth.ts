@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { OAuthClientMetadataSchema } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { z } from "zod";
 import { requireAuth } from "./auth.js";
-import { sql } from "./db.js";
+import { database } from "./database.js";
 import {
   json,
   readJson,
@@ -14,7 +14,6 @@ import {
 } from "./http.js";
 import {
   approveAuthorization,
-  ensureOAuthSchema,
   exchangeCredential,
   getAuthorizationRequest,
 } from "./oauth-store.js";
@@ -92,7 +91,6 @@ export async function oauthHandler(request: Request): Promise<Response> {
         scopes_supported: [OAUTH_SCOPE],
         authorization_response_iss_parameter_supported: true,
       });
-    await ensureOAuthSchema();
     if (request.method === "POST" && action === "register") {
       const result = OAuthClientMetadataSchema.safeParse(await readJson(request));
       if (!result.success) return oauthError("invalid_client_metadata", "Invalid client metadata");
@@ -123,16 +121,14 @@ export async function oauthHandler(request: Request): Promise<Response> {
         response_types: ["code"],
         scope: OAUTH_SCOPE,
       };
-      const db = sql();
-      const registered = await db.transaction([
-        db.query("LOCK TABLE oauth_clients IN SHARE ROW EXCLUSIVE MODE"),
-        db.query(
-          `INSERT INTO oauth_clients (id, metadata) SELECT $1, $2::jsonb
-          WHERE (SELECT count(*) FROM oauth_clients WHERE created_at > now() - interval '1 minute') < 30 RETURNING id`,
-          [clientId, JSON.stringify(stored)],
-        ),
-      ]);
-      if (!registered[1].length)
+      const registered = await database()
+        .prepare(
+          `INSERT INTO oauth_clients (id, metadata) SELECT ?, ?
+        WHERE (SELECT count(*) FROM oauth_clients WHERE julianday(created_at) > julianday('now', '-1 minute')) < 30 RETURNING id`,
+        )
+        .bind(clientId, JSON.stringify(stored))
+        .first();
+      if (!registered)
         return oauthError(
           "temporarily_unavailable",
           "Too many registrations; retry in a minute",
@@ -146,10 +142,11 @@ export async function oauthHandler(request: Request): Promise<Response> {
     if (request.method === "GET" && action === "authorize") {
       const params = url.searchParams;
       const clientId = params.get("client_id");
-      const rows = await sql().query("SELECT metadata FROM oauth_clients WHERE id = $1", [
-        clientId,
-      ]);
-      const metadata = rows[0]?.metadata;
+      const row = await database()
+        .prepare("SELECT metadata FROM oauth_clients WHERE id = ?")
+        .bind(clientId)
+        .first<{ metadata: string }>();
+      const metadata = row ? JSON.parse(row.metadata) : null;
       const redirectUri = params.get("redirect_uri") ?? "";
       const challenge = params.get("code_challenge") ?? "";
       if (
@@ -174,17 +171,17 @@ export async function oauthHandler(request: Request): Promise<Response> {
         resource: mcpResource(),
         state: params.get("state") ?? "",
       };
-      const db = sql();
-      const pending = await db.transaction([
-        db.query("LOCK TABLE oauth_requests IN SHARE ROW EXCLUSIVE MODE"),
-        db.query("DELETE FROM oauth_requests WHERE expires_at <= now()"),
-        db.query(
-          `INSERT INTO oauth_requests (id, data, expires_at) SELECT $1, $2::jsonb, now() + interval '10 minutes'
+      const db = database();
+      const pending = await db.batch([
+        db.prepare("DELETE FROM oauth_requests WHERE julianday(expires_at) <= julianday('now')"),
+        db
+          .prepare(
+            `INSERT INTO oauth_requests (id, data, expires_at) SELECT ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+10 minutes')
           WHERE (SELECT count(*) FROM oauth_requests) < 100 RETURNING id`,
-          [id, JSON.stringify(data)],
-        ),
+          )
+          .bind(id, JSON.stringify(data)),
       ]);
-      if (!pending[2].length)
+      if (!pending[1].results.length)
         return oauthError("temporarily_unavailable", "Too many pending authorizations", 429);
       return redirect(`${origin}/?oauth_request=${id}`);
     }
@@ -248,7 +245,7 @@ export async function oauthHandler(request: Request): Promise<Response> {
               throw new RequestError(409, "授权申请已处理");
             callback.searchParams.set("code", code);
           } else {
-            await sql().query("DELETE FROM oauth_requests WHERE id = $1", [id]);
+            await database().prepare("DELETE FROM oauth_requests WHERE id = ?").bind(id).run();
             callback.searchParams.set("error", "access_denied");
           }
           if (pending.state) callback.searchParams.set("state", pending.state);
@@ -258,16 +255,22 @@ export async function oauthHandler(request: Request): Promise<Response> {
       }
       if (action === "connections") {
         if (request.method === "GET") {
-          const connections = await sql()
-            .query(`SELECT g.id, c.metadata->>'client_name' AS name, g.created_at AS "createdAt"
-            FROM oauth_grants g JOIN oauth_clients c ON c.id = g.client_id WHERE NOT g.revoked ORDER BY g.created_at DESC`);
-          return json({ connections });
+          const connections = await database()
+            .prepare(
+              `SELECT g.id, c.metadata->>'$.client_name' AS name, g.created_at AS "createdAt"
+            FROM oauth_grants g JOIN oauth_clients c ON c.id = g.client_id WHERE g.revoked = 0 ORDER BY g.created_at DESC`,
+            )
+            .all();
+          return json({ connections: connections.results });
         }
         if (request.method === "DELETE") {
           const { id } = z
             .object({ id: z.string().min(1).max(200) })
             .parse(await readJson(request));
-          await sql().query("UPDATE oauth_grants SET revoked = true WHERE id = $1", [id]);
+          await database()
+            .prepare("UPDATE oauth_grants SET revoked = 1 WHERE id = ?")
+            .bind(id)
+            .run();
           return json({ revoked: true });
         }
       }

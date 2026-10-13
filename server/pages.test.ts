@@ -1,17 +1,33 @@
 /** Verify public routing, authentication boundaries, and OAuth discovery on Pages. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { onRequest } from "../functions/[[path]]";
+import { database, withDatabase } from "./database";
+import type { D1Database } from "@cloudflare/workers-types";
 
 afterEach(() => vi.unstubAllEnvs());
 
 function request(path: string, method = "GET") {
   return onRequest({
     request: new Request(`https://timetable.test${path}`, { method }),
+    env: { DB: {} as import("@cloudflare/workers-types").D1Database },
     next: async () => new Response("static app"),
   });
 }
 
 describe("Pages routing", () => {
+  it("isolates database bindings across overlapping requests", async () => {
+    const first = {} as D1Database,
+      second = {} as D1Database;
+    await Promise.all(
+      [first, second].map((db) =>
+        withDatabase(db, async () => {
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          expect(database()).toBe(db);
+        }),
+      ),
+    );
+    expect(() => database()).toThrow("Missing D1 DB binding");
+  });
   it("serves the application while returning JSON 404s for unknown APIs", async () => {
     expect(await (await request("/")).text()).toBe("static app");
     expect(await (await request("/assets/app.js")).text()).toBe("static app");

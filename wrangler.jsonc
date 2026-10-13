@@ -3,6 +3,15 @@
   "name": "nono-timetable",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nono-timetable",
+      "database_id": "fd5b5a57-b649-4763-b51c-c389c201f865",
+      "migrations_dir": "migrations",
+    },
+  ],
   "vars": {
     "PUBLIC_ORIGIN": "https://nono-timetable.pages.dev",
   },

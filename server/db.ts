@@ -1,10 +1,12 @@
-/** Persist lessons and student defaults with places and optimistic version checks. */
-
-import { neon } from "@neondatabase/serverless";
-import { isRecord, normalizeRepeat } from "../src/lib/repeat.js";
+/** Persist lessons and students in D1 with atomic splits and optimistic version checks. */
+import { normalizeRepeat } from "../src/lib/repeat.js";
 import { parseLocation } from "../src/lib/location.js";
-import type { LessonPreset, LessonRule, RepeatRule } from "../src/types/lesson.js";
+import type { LessonPreset, LessonRule } from "../src/types/lesson.js";
+import { database } from "./database.js";
 
+interface PresetRow extends Omit<LessonPreset, "location"> {
+  location: string | null;
+}
 interface LessonRow {
   id: string;
   title: string;
@@ -12,67 +14,17 @@ interface LessonRow {
   start_time: string;
   end_time: string;
   notes: string;
-  location: unknown;
-  repeat_rule: RepeatRule | null;
+  location: string | null;
+  repeat_rule: string | null;
   version: number;
   created_at: string;
   updated_at: string;
 }
 
-function databaseUrl(): string {
-  const value = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-  if (!value) throw new Error("Missing DATABASE_URL or POSTGRES_URL");
-  return value;
+function mapPreset(row: PresetRow): LessonPreset {
+  return { ...row, location: parseLocation(row.location ? JSON.parse(row.location) : null) };
 }
-
-export function sql() {
-  return neon(databaseUrl());
-}
-
-let schemaPromise: Promise<unknown> | undefined;
-
-export function ensureSchema(): Promise<unknown> {
-  schemaPromise ??= sql()
-    .query(
-      `
-      CREATE TABLE IF NOT EXISTS lessons (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        start_date DATE NOT NULL,
-        start_time VARCHAR(5) NOT NULL,
-        end_time VARCHAR(5) NOT NULL,
-        notes TEXT NOT NULL DEFAULT '',
-        repeat_rule JSONB,
-        location JSONB,
-        version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `,
-    )
-    .then(() =>
-      sql().query(`
-      CREATE TABLE IF NOT EXISTS lesson_presets (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
-        notes TEXT NOT NULL DEFAULT '' CHECK (length(notes) <= 10000),
-        location JSONB,
-        version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `),
-    )
-    .then(() => sql().query("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS location JSONB"))
-    .then(() => sql().query("ALTER TABLE lesson_presets ADD COLUMN IF NOT EXISTS location JSONB"))
-    .catch((error: unknown) => {
-      schemaPromise = undefined;
-      throw error;
-    });
-  return schemaPromise;
-}
-
 function mapRow(row: LessonRow): LessonRule {
-  const repeat = normalizeRepeat(row.repeat_rule);
   return {
     id: row.id,
     version: row.version,
@@ -81,194 +33,156 @@ function mapRow(row: LessonRow): LessonRule {
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
     notes: row.notes,
-    location: parseLocation(row.location),
-    repeat,
+    location: parseLocation(row.location ? JSON.parse(row.location) : null),
+    repeat: normalizeRepeat(row.repeat_rule ? JSON.parse(row.repeat_rule) : null),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
 }
 
-const RETURNING = `
-  id, title, start_date::text, start_time, end_time, notes, location, repeat_rule,
-  version, created_at::text, updated_at::text
-`;
+const columns =
+  "id, title, start_date, start_time, end_time, notes, location, repeat_rule, version, created_at, updated_at";
+const presetColumns = "id, title, notes, location, version";
+const now = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+const lessonValues = (rule: LessonRule) => [
+  rule.id,
+  rule.title,
+  rule.startDate,
+  rule.startTime,
+  rule.endTime,
+  rule.notes,
+  JSON.stringify(rule.repeat),
+  JSON.stringify(rule.location),
+];
 
 export async function listLessons(): Promise<LessonRule[]> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    `SELECT ${RETURNING} FROM lessons ORDER BY start_date, start_time, id`,
-  )) as LessonRow[];
-  return rows.map(mapRow);
+  const rows = await database()
+    .prepare(`SELECT ${columns} FROM lessons ORDER BY start_date, start_time, id`)
+    .all<LessonRow>();
+  return rows.results.map(mapRow);
 }
-
 export async function listLessonPresets(): Promise<LessonPreset[]> {
-  await ensureSchema();
-  return (await sql().query(
-    "SELECT id, title, notes, location, version FROM lesson_presets ORDER BY created_at, id",
-  )) as LessonPreset[];
+  const rows = await database()
+    .prepare(`SELECT ${presetColumns} FROM lesson_presets ORDER BY created_at, id`)
+    .all<PresetRow>();
+  return rows.results.map(mapPreset);
 }
-
 export async function createLessonPreset(preset: LessonPreset): Promise<LessonPreset> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    `INSERT INTO lesson_presets (id, title, notes, location) VALUES ($1, $2, $3, $4::jsonb)
-     RETURNING id, title, notes, location, version`,
-    [preset.id, preset.title, preset.notes, JSON.stringify(preset.location)],
-  )) as LessonPreset[];
-  return rows[0];
+  const row = await database()
+    .prepare(
+      `INSERT INTO lesson_presets (id, title, notes, location) VALUES (?, ?, ?, ?) RETURNING ${presetColumns}`,
+    )
+    .bind(preset.id, preset.title, preset.notes, JSON.stringify(preset.location))
+    .first<PresetRow>();
+  return mapPreset(row!);
 }
-
 export async function updateLessonPreset(preset: LessonPreset): Promise<LessonPreset | null> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    `UPDATE lesson_presets SET title = $2, notes = $3, version = version + 1, location = $5::jsonb
-     WHERE id = $1 AND version = $4 RETURNING id, title, notes, location, version`,
-    [preset.id, preset.title, preset.notes, preset.version, JSON.stringify(preset.location)],
-  )) as LessonPreset[];
-  return rows[0] ?? null;
+  const row = await database()
+    .prepare(
+      `UPDATE lesson_presets SET title = ?, notes = ?, location = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING ${presetColumns}`,
+    )
+    .bind(preset.title, preset.notes, JSON.stringify(preset.location), preset.id, preset.version)
+    .first<PresetRow>();
+  return row ? mapPreset(row) : null;
 }
-
 export async function deleteLessonPreset(id: string, version: number): Promise<boolean> {
-  await ensureSchema();
-  const rows = await sql().query(
-    "DELETE FROM lesson_presets WHERE id = $1 AND version = $2 RETURNING id",
-    [id, version],
-  );
-  return rows.length === 1;
+  const result = await database()
+    .prepare("DELETE FROM lesson_presets WHERE id = ? AND version = ?")
+    .bind(id, version)
+    .run();
+  return result.meta.changes === 1;
 }
-
 export async function createLesson(rule: LessonRule): Promise<LessonRule | null> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
-     ON CONFLICT (id) DO NOTHING
-     RETURNING ${RETURNING}`,
-    [
-      rule.id,
-      rule.title,
-      rule.startDate,
-      rule.startTime,
-      rule.endTime,
-      rule.notes,
-      JSON.stringify(rule.repeat),
-      JSON.stringify(rule.location),
-    ],
-  )) as LessonRow[];
-  return rows[0] ? mapRow(rows[0]) : null;
+  const row = await database()
+    .prepare(
+      `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING RETURNING ${columns}`,
+    )
+    .bind(...lessonValues(rule))
+    .first<LessonRow>();
+  return row ? mapRow(row) : null;
 }
-
 export async function updateLesson(rule: LessonRule): Promise<LessonRule | null> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    `UPDATE lessons
-     SET title = $2, start_date = $3, start_time = $4, end_time = $5,
-         notes = $6, repeat_rule = $7::jsonb, location = $9::jsonb, version = version + 1, updated_at = NOW()
-     WHERE id = $1 AND version = $8
-     RETURNING ${RETURNING}`,
-    [
-      rule.id,
-      rule.title,
-      rule.startDate,
-      rule.startTime,
-      rule.endTime,
-      rule.notes,
-      JSON.stringify(rule.repeat),
-      rule.version,
-      JSON.stringify(rule.location),
-    ],
-  )) as LessonRow[];
-  return rows[0] ? mapRow(rows[0]) : null;
+  const row = await database()
+    .prepare(
+      `UPDATE lessons SET title = ?, start_date = ?, start_time = ?, end_time = ?, notes = ?, repeat_rule = ?, location = ?, version = version + 1, updated_at = ${now} WHERE id = ? AND version = ? RETURNING ${columns}`,
+    )
+    .bind(...lessonValues(rule).slice(1), rule.id, rule.version)
+    .first<LessonRow>();
+  return row ? mapRow(row) : null;
 }
-
 export async function deleteLesson(id: string, version: number): Promise<boolean> {
-  await ensureSchema();
-  const rows = (await sql().query(
-    "DELETE FROM lessons WHERE id = $1 AND version = $2 RETURNING id",
-    [id, version],
-  )) as Array<{ id: string }>;
-  return rows.length === 1;
+  const result = await database()
+    .prepare("DELETE FROM lessons WHERE id = ? AND version = ?")
+    .bind(id, version)
+    .run();
+  return result.meta.changes === 1;
 }
 
+/** D1 batches serialize both writes; a conflicting new ID rolls the entire split back. */
 export async function splitLesson(
   previous: LessonRule,
   next: LessonRule,
 ): Promise<{ previous: LessonRule; next: LessonRule } | null> {
-  await ensureSchema();
-  const rows = (await sql()
-    .query(
-      `WITH updated AS (
-      UPDATE lessons
-      SET title = $2, start_date = $3, start_time = $4, end_time = $5,
-          notes = $6, repeat_rule = $7::jsonb, location = $9::jsonb,
-          version = version + 1, updated_at = NOW()
-      WHERE id = $1 AND version = $8 RETURNING ${RETURNING}
-    ), created AS (
-      INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location)
-      SELECT $10, $11, $12::date, $13, $14, $15, $16::jsonb, $17::jsonb
-      FROM updated RETURNING ${RETURNING}
-    )
-    SELECT row_to_json(updated) AS previous, row_to_json(created) AS next
-    FROM updated CROSS JOIN created`,
-      [
-        previous.id,
-        previous.title,
-        previous.startDate,
-        previous.startTime,
-        previous.endTime,
-        previous.notes,
-        JSON.stringify(previous.repeat),
-        previous.version,
-        JSON.stringify(previous.location),
-        next.id,
-        next.title,
-        next.startDate,
-        next.startTime,
-        next.endTime,
-        next.notes,
-        JSON.stringify(next.repeat),
-        JSON.stringify(next.location),
-      ],
-    )
-    .catch((error: unknown) => {
-      if (isRecord(error) && error.code === "23505") return [];
-      throw error;
-    })) as Array<{ previous: LessonRow; next: LessonRow }>;
-  return rows[0] ? { previous: mapRow(rows[0].previous), next: mapRow(rows[0].next) } : null;
+  const db = database();
+  try {
+    const results = await db.batch<LessonRow>([
+      db
+        .prepare(
+          `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, repeat_rule, location)
+        SELECT ?, ?, ?, ?, ?, ?, ?, ? FROM lessons WHERE id = ? AND version = ? RETURNING ${columns}`,
+        )
+        .bind(...lessonValues(next), previous.id, previous.version),
+      db
+        .prepare(
+          `UPDATE lessons SET title = ?, start_date = ?, start_time = ?, end_time = ?, notes = ?, repeat_rule = ?, location = ?, version = version + 1, updated_at = ${now}
+        WHERE id = ? AND version = ? AND changes() = 1 RETURNING ${columns}`,
+        )
+        .bind(...lessonValues(previous).slice(1), previous.id, previous.version),
+    ]);
+    return results[1].results[0]
+      ? { previous: mapRow(results[1].results[0]), next: mapRow(results[0].results[0]) }
+      : null;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("UNIQUE constraint failed: lessons.id"))
+      return null;
+    throw error;
+  }
 }
 
-/** Commit an agent plan only while its full snapshot and OAuth grant remain valid. */
+/** The first batch write guards all mutations with the full snapshot and active grant. */
 export async function commitMcpLessons(
   snapshot: Record<string, number>,
   replacements: LessonRule[],
   removedId: string | null,
   grantId: string,
 ): Promise<boolean> {
-  await ensureSchema();
-  const db = sql();
-  const results = await db.transaction([
-    db.query("LOCK TABLE lessons IN SHARE ROW EXCLUSIVE MODE"),
-    db.query(
-      `WITH grant_lock AS MATERIALIZED (
-      SELECT id FROM oauth_grants WHERE id = $4 AND NOT revoked FOR UPDATE
-    ), allowed AS MATERIALIZED (
-      SELECT 1 FROM grant_lock WHERE
-        COALESCE((SELECT jsonb_object_agg(id, version) FROM lessons), '{}'::jsonb) = $1::jsonb
-    ), removed AS (
-      DELETE FROM lessons WHERE id = $3 AND EXISTS (SELECT 1 FROM allowed)
-        AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements($2::jsonb) r WHERE r->>'id' = $3)
-    ), saved AS (
-      INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, location, repeat_rule)
-      SELECT r->>'id', r->>'title', (r->>'startDate')::date, r->>'startTime', r->>'endTime',
-        r->>'notes', r->'location', r->'repeat' FROM jsonb_array_elements($2::jsonb) r
-      WHERE EXISTS (SELECT 1 FROM allowed)
-      ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, start_date = EXCLUDED.start_date,
-        start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time, notes = EXCLUDED.notes,
-        location = EXCLUDED.location, repeat_rule = EXCLUDED.repeat_rule,
-        version = lessons.version + 1, updated_at = now()
-    ) SELECT EXISTS (SELECT 1 FROM allowed) AS applied`,
-      [JSON.stringify(snapshot), JSON.stringify(replacements), removedId, grantId],
-    ),
-  ]);
-  return results[1][0]?.applied === true;
+  const db = database();
+  const statements = [
+    db
+      .prepare(
+        `UPDATE oauth_grants SET revoked = revoked WHERE id = ? AND revoked = 0
+    AND (SELECT count(*) FROM lessons) = (SELECT count(*) FROM json_each(?))
+    AND NOT EXISTS (SELECT 1 FROM lessons l LEFT JOIN json_each(?) s ON s.key = l.id WHERE s.value IS NULL OR s.value != l.version)`,
+      )
+      .bind(grantId, JSON.stringify(snapshot), JSON.stringify(snapshot)),
+  ];
+  if (replacements.length)
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO lessons (id, title, start_date, start_time, end_time, notes, location, repeat_rule)
+    SELECT value->>'$.id', value->>'$.title', value->>'$.startDate', value->>'$.startTime', value->>'$.endTime', value->>'$.notes', value->>'$.location', value->>'$.repeat'
+    FROM json_each(?) WHERE changes() > 0
+    ON CONFLICT (id) DO UPDATE SET title = excluded.title, start_date = excluded.start_date,
+      start_time = excluded.start_time, end_time = excluded.end_time, notes = excluded.notes,
+      location = excluded.location, repeat_rule = excluded.repeat_rule, version = lessons.version + 1, updated_at = ${now}`,
+        )
+        .bind(JSON.stringify(replacements)),
+    );
+  if (removedId && !replacements.some((row) => row.id === removedId))
+    statements.push(
+      db.prepare("DELETE FROM lessons WHERE id = ? AND changes() > 0").bind(removedId),
+    );
+  const result = await db.batch(statements);
+  return result[0].meta.changes === 1;
 }

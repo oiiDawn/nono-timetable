@@ -1,113 +1,46 @@
-/** Exercise the actual persistence SQL against an isolated PostgreSQL container. */
-
-import { execFileSync } from "node:child_process";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+/** Verify D1 persistence, JSON round-trips and atomic split rollback. */
+import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import {
   createLesson,
   createLessonPreset,
-  ensureSchema,
   listLessonPresets,
   listLessons,
   splitLesson,
+  updateLesson,
+  deleteLesson,
+  updateLessonPreset,
+  deleteLessonPreset,
 } from "./db";
 import type { LessonRule } from "../src/types/lesson";
-
-const database = vi.hoisted(() => ({
-  query: async (_sql: string, _params?: unknown[]): Promise<unknown[]> => [],
-}));
-vi.mock("@neondatabase/serverless", () => ({ neon: () => database }));
-const container = process.env.NONO_TEST_POSTGRES_CONTAINER;
-
-describe.skipIf(!container)("PostgreSQL persistence", () => {
+import type { D1Database } from "@cloudflare/workers-types";
+import { testDatabase } from "./test-database";
+const state = vi.hoisted(() => ({ db: null as D1Database | null }));
+vi.mock("./database.js", () => ({ database: () => state.db! }));
+let dispose: () => Promise<void>;
+describe("D1 persistence", () => {
   beforeAll(async () => {
-    const label = execFileSync(
-      "docker",
-      ["inspect", "--format", '{{index .Config.Labels "codex.task"}}', container!],
-      { encoding: "utf8" },
-    ).trim();
-    if (label !== "nono-location-check-20261008")
-      throw new Error("Use the disposable location-check container only");
-    vi.stubEnv("DATABASE_URL", "postgresql://test:test@localhost/test");
-    database.query = async (sql, params = []) => {
-      let query = sql.trim();
-      if (query.startsWith("WITH updated")) {
-        query = query.replace(
-          "SELECT row_to_json(updated) AS previous, row_to_json(created) AS next",
-          "SELECT json_build_object('previous', row_to_json(updated), 'next', row_to_json(created))",
-        );
-      } else if (/^(INSERT|UPDATE|DELETE)/.test(query) && query.includes("RETURNING")) {
-        query = `WITH result AS (${query}) SELECT COALESCE(json_agg(result), '[]') FROM result`;
-      } else if (query.startsWith("SELECT")) {
-        query = `SELECT COALESCE(json_agg(result), '[]') FROM (${query}) result`;
-      }
-      query = query.replace(/\$(\d+)/g, (_, index: string) => {
-        const value = params[Number(index) - 1];
-        if (value === null || value === undefined) return "NULL";
-        if (typeof value === "number") return String(value);
-        return `'${String(value).replaceAll("'", "''")}'`;
-      });
-      let output: string;
-      try {
-        output = execFileSync(
-          "docker",
-          [
-            "exec",
-            container!,
-            "psql",
-            "-U",
-            "postgres",
-            "-qAt",
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-v",
-            "VERBOSITY=verbose",
-            "-c",
-            query,
-          ],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-        ).trim();
-      } catch (error) {
-        if (error instanceof Error && "stderr" in error) {
-          const code = String(error.stderr).match(/ERROR:\s+(\d{5}):/)?.[1];
-          Object.assign(error, { code });
-        }
-        throw error;
-      }
-      if (!output) return [];
-      const parsed: unknown = JSON.parse(output);
-      return Array.isArray(parsed) ? parsed : [parsed];
-    };
-    await database.query("DROP TABLE IF EXISTS lesson_presets, lessons");
+    const runtime = await testDatabase();
+    state.db = runtime.db as unknown as D1Database;
+    dispose = runtime.dispose;
+  }, 30000);
+  afterAll(async () => {
+    await dispose?.();
   });
-  afterAll(() => vi.unstubAllEnvs());
-
-  it("adds nullable places idempotently to an existing schema and preserves legacy data", async () => {
-    await database.query(`CREATE TABLE lessons (
-      id TEXT PRIMARY KEY, title TEXT NOT NULL, start_date DATE NOT NULL,
-      start_time VARCHAR(5) NOT NULL, end_time VARCHAR(5) NOT NULL,
-      notes TEXT NOT NULL DEFAULT '', repeat_rule JSONB,
-      version INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`);
-    await database.query(
-      "CREATE TABLE lesson_presets (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
-    );
-    await database.query(
-      "INSERT INTO lessons (id,title,start_date,start_time,end_time) VALUES ('legacy','旧课程','2026-10-08','09:00','10:00')",
-    );
-    await ensureSchema();
-    await database.query("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS location JSONB");
-    await database.query("ALTER TABLE lesson_presets ADD COLUMN IF NOT EXISTS location JSONB");
-    expect((await listLessons())[0]).toMatchObject({ id: "legacy", location: null, version: 1 });
-    await createLessonPreset({
+  it("round-trips students and rejects stale updates and deletes", async () => {
+    const created = await createLessonPreset({
       id: "student",
       version: 1,
       title: "小明",
-      notes: "",
-      location: { name: "学生家", address: "杭州", detail: "302" },
+      notes: "数学",
+      location: { name: "学生家", address: "西安", detail: "302" },
     });
-    expect((await listLessonPresets())[0].location?.detail).toBe("302");
+    expect((await listLessonPresets())[0]).toEqual(created);
+    const updated = await updateLessonPreset({ ...created, notes: "英语" });
+    expect(updated?.version).toBe(2);
+    expect(await updateLessonPreset(created)).toBeNull();
+    expect(await deleteLessonPreset(created.id, created.version)).toBe(false);
+    expect(await deleteLessonPreset(created.id, updated!.version)).toBe(true);
   });
-
   it("splits once, leaves no new series on stale versions, and rolls back a colliding new id", async () => {
     const base: LessonRule = {
       id: "original",
@@ -143,5 +76,11 @@ describe.skipIf(!container)("PostgreSQL persistence", () => {
     const before = await listLessons();
     expect(await splitLesson({ ...result!.previous, title: "不应保存" }, next)).toBeNull();
     expect(await listLessons()).toEqual(before);
+    const current = result!.previous;
+    const changed = await updateLesson({ ...current, notes: "updated", location: null });
+    expect(changed).toMatchObject({ notes: "updated", location: null, version: 3 });
+    expect(await updateLesson(current)).toBeNull();
+    expect(await deleteLesson(current.id, current.version)).toBe(false);
+    expect(await deleteLesson(current.id, changed!.version)).toBe(true);
   });
 });

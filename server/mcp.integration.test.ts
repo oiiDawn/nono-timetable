@@ -1,6 +1,4 @@
-/** Exercise OAuth, MCP transport, and atomic SQL in a disposable PostgreSQL container. */
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+/** Exercise OAuth, MCP transport, and atomic SQL in an isolated D1 runtime. */
 import { createServer } from "node:http";
 import { scryptSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -15,8 +13,8 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { oauthHandler, tokenHash } from "./oauth";
 import { createSessionCookie } from "./auth";
-import { accessGrant, ensureOAuthSchema } from "./oauth-store";
-import { createLesson, ensureSchema, listLessons, sql, commitMcpLessons } from "./db";
+import { accessGrant } from "./oauth-store";
+import { createLesson, listLessons, commitMcpLessons } from "./db";
 import { mcpHandler, mutateLessons } from "./mcp";
 import { lessonSnapshot, type Mutation } from "./mcp-lessons";
 import loginApi from "../api/auth/login";
@@ -25,67 +23,15 @@ import sessionApi from "../api/auth/session";
 import lessonsApi from "../api/lessons/index";
 import presetsApi from "../api/lesson-presets";
 
-type Query = { text: string; params: unknown[] };
-const database = vi.hoisted(() => ({
-  run: async (_queries: Query[]): Promise<Record<string, unknown>[][]> => [],
-}));
-vi.mock("@neondatabase/serverless", () => ({
-  neon: () => ({
-    query: (text: string, params: unknown[] = []) => ({
-      text,
-      params,
-      then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
-        return database.run([{ text, params }]).then((rows) => resolve(rows[0]), reject);
-      },
-    }),
-    transaction: (queries: Query[]) => database.run(queries),
-  }),
-}));
-
-const container = process.env.NONO_MCP_TEST_CONTAINER;
-const exec = promisify(execFile);
+import { testDatabase } from "./test-database";
+import type { D1Database } from "@cloudflare/workers-types";
+const state = vi.hoisted(() => ({ db: null as D1Database | null }));
+vi.mock("./database.js", () => ({ database: () => state.db! }));
+let dispose: () => Promise<void>;
 const origin = "https://timetable.test";
 const resource = `${origin}/api/mcp`;
 const verifier = "v".repeat(43);
 let cookie: string;
-
-function csvRows(csv: string): Record<string, unknown>[] {
-  const rows: string[][] = [];
-  let row: string[] = [],
-    value = "",
-    quoted = false;
-  for (let i = 0; i < csv.length; i++) {
-    const char = csv[i];
-    if (char === '"') {
-      if (quoted && csv[i + 1] === '"') {
-        value += '"';
-        i++;
-      } else quoted = !quoted;
-    } else if (!quoted && (char === "," || char === "\n")) {
-      row.push(value.replace(/\r$/, ""));
-      value = "";
-      if (char === "\n") {
-        rows.push(row);
-        row = [];
-      }
-    } else value += char;
-  }
-  const headers = rows.shift() ?? [];
-  return rows
-    .filter((r) => r.length === headers.length)
-    .map((r) =>
-      Object.fromEntries(
-        headers.map((header, i) => {
-          let field: unknown = r[i];
-          if (["data", "metadata", "repeat_rule", "location"].includes(header) && r[i])
-            field = JSON.parse(r[i]);
-          else if (["applied", "revoked"].includes(header)) field = r[i] === "t";
-          else if (header === "version") field = Number(r[i]);
-          return [header, field];
-        }),
-      ),
-    );
-}
 
 function request(action: string, method = "GET", body?: unknown, session = false) {
   const headers: Record<string, string> = {};
@@ -156,58 +102,19 @@ async function connection() {
   return { ...auth, tokens: await response.json() };
 }
 
-describe.skipIf(!container)("MCP with real PostgreSQL", () => {
+describe("MCP with D1", () => {
   beforeAll(async () => {
-    const { stdout } = await exec("docker", [
-      "inspect",
-      "--format",
-      '{{index .Config.Labels "codex.task"}}',
-      container!,
-    ]);
-    if (stdout.trim() !== "nono-mcp-check-20261008")
-      throw new Error("Use only the disposable MCP test container");
-    vi.stubEnv("DATABASE_URL", "postgresql://unused:unused@localhost/test");
+    const runtime = await testDatabase();
+    state.db = runtime.db as unknown as D1Database;
+    dispose = runtime.dispose;
     vi.stubEnv("PUBLIC_ORIGIN", origin);
     vi.stubEnv("SESSION_SECRET", "s".repeat(32));
     cookie = createSessionCookie(new Request(origin)).split(";")[0];
-    database.run = async (queries) => {
-      const statements = queries.map(({ text, params }) =>
-        text
-          .replace(/\$(\d+)/g, (_, n: string) => {
-            const value = params[Number(n) - 1];
-            return value === null || value === undefined
-              ? "NULL"
-              : `'${String(value).replaceAll("'", "''")}'`;
-          })
-          .trim()
-          .replace(/;$/, ""),
-      );
-      const { stdout } = await exec(
-        "docker",
-        [
-          "exec",
-          container!,
-          "psql",
-          "-U",
-          "postgres",
-          "-q",
-          "--csv",
-          "-v",
-          "ON_ERROR_STOP=1",
-          "-c",
-          `BEGIN;${statements.join(";")};COMMIT;`,
-        ],
-        { maxBuffer: 10 * 1024 * 1024 },
-      );
-      return queries.map((_, i) => (i === queries.length - 1 ? csvRows(stdout) : []));
-    };
-    await sql().query(
-      "DROP TABLE IF EXISTS oauth_tokens, oauth_grants, oauth_requests, oauth_clients, lessons, lesson_presets CASCADE",
-    );
-    await ensureSchema();
-    await ensureOAuthSchema();
   }, 30000);
-  afterAll(() => vi.unstubAllEnvs());
+  afterAll(async () => {
+    await dispose?.();
+    vi.unstubAllEnvs();
+  });
 
   it("advertises OAuth discovery and protects consent with login and same origin", async () => {
     expect(
@@ -345,10 +252,12 @@ describe.skipIf(!container)("MCP with real PostgreSQL", () => {
     );
     expect(logout.status).toBe(200);
     expect(await accessGrant(tokenHash(tokens.access_token), resource)).toBeTruthy();
-    await sql().query(
-      "UPDATE oauth_tokens SET expires_at = now() - interval '1 second' WHERE hash = $1",
-      [tokenHash(tokens.access_token)],
-    );
+    await state
+      .db!.prepare(
+        "UPDATE oauth_tokens SET expires_at = datetime('now', '-1 second') WHERE hash = ?",
+      )
+      .bind(tokenHash(tokens.access_token))
+      .run();
     expect(await accessGrant(tokenHash(tokens.access_token), resource)).toBeNull();
     const refreshed = await token({
       grant_type: "refresh_token",
@@ -405,6 +314,22 @@ describe.skipIf(!container)("MCP with real PostgreSQL", () => {
       ),
     ).toBe(true);
     expect((await listLessons()).find((r) => r.id === base.id)?.version).toBe(2);
+  });
+  it("rejects writes after revocation and serializes competing snapshot commits", async () => {
+    const { tokens } = await connection();
+    const grant = (await accessGrant(tokenHash(tokens.access_token), resource))!;
+    const rows = await listLessons();
+    const snapshot = lessonSnapshot(rows);
+    const base = rows[0];
+    const replies = await Promise.all([
+      commitMcpLessons(snapshot, [{ ...base, notes: "first" }], null, grant),
+      commitMcpLessons(snapshot, [{ ...base, notes: "second" }], null, grant),
+    ]);
+    expect(replies.sort()).toEqual([false, true]);
+    await state.db!.prepare("UPDATE oauth_grants SET revoked = 1 WHERE id = ?").bind(grant).run();
+    const current = await listLessons();
+    expect(await commitMcpLessons(lessonSnapshot(current), [], base.id, grant)).toBe(false);
+    expect(await listLessons()).toEqual(current);
   });
   it("returns a new confirmation after unrelated timetable changes", async () => {
     const { tokens } = await connection();

@@ -16,7 +16,7 @@
 
 ## 云端配置
 
-项目使用 Cloudflare Pages Functions 和 Neon Postgres。保留已有 Neon 数据库，在 Pages 项目的 Production 环境中配置 Secret `DATABASE_URL`（现有数据库连接串）以及以下密钥；密钥不能放进前端变量或提交到 Git：
+项目使用 Cloudflare Pages Functions 和 Cloudflare D1。`wrangler.jsonc` 将数据库 `nono-timetable` 原生绑定为 `DB`，不需要数据库连接串。在 Pages 项目的 Production 环境中配置以下密钥；密钥不能放进前端变量或提交到 Git：
 
 ```text
 APP_PASSWORD_HASH=scrypt$<salt>$<hash>
@@ -32,9 +32,9 @@ PUBLIC_ORIGIN=https://nono-timetable.pages.dev
 npm run hash-password -- "你的个人密码"
 ```
 
-`SESSION_SECRET` 和 `CALENDAR_FEED_TOKEN` 应分别生成，不能复用。首次数据 API 请求会自动创建 `lessons` 和 `lesson_presets` 表。
+`SESSION_SECRET` 和 `CALENDAR_FEED_TOKEN` 应分别生成，不能复用。表结构由 `migrations/` 管理，部署前执行 `npx wrangler d1 migrations apply nono-timetable --remote`。
 
-地点搜索通过登录后的服务端接口调用高德，`AMAP_KEY` 不发送给浏览器。未配置 Key 或搜索不可用时仍可手填地点。已有两张表会幂等新增可空的 `location JSONB` 列，历史记录不会自动填入地点或改变版本。高德搜索配额和数据使用授权需按实际账号确认。
+地点搜索通过登录后的服务端接口调用高德，`AMAP_KEY` 不发送给浏览器。未配置 Key 或搜索不可用时仍可手填地点。地点与重复规则以 JSON 文本保存，读写时验证并还原。高德搜索配额和数据使用授权需按实际账号确认。
 
 网页中的地图链接打开高德标记或搜索结果。Apple Calendar 订阅将高德坐标转换为 WGS-84，输出一致的地点文字与结构化地点以显示内嵌地图；手填且没有坐标的地点仅输出文字。
 
@@ -51,7 +51,7 @@ codex mcp login nono-timetable --scopes timetable
 
 授权没有固定或闲置到期时间。访问令牌有效期 1 小时，客户端自动轮换刷新令牌；旧刷新令牌被重用时整组授权撤销。退出网站不会撤销授权，顶部“MCP 授权”可单独撤销连接，已发放的访问令牌也随即失效。更换网站密码或 `SESSION_SECRET` 不会自动撤销独立的 MCP 授权，应在该入口单独撤销。
 
-首次 OAuth 请求会创建 `oauth_clients`、`oauth_requests`、`oauth_grants` 和 `oauth_tokens` 表；凭证只保存 SHA-256 摘要。授权申请有效期 10 分钟，授权码 5 分钟且只能使用一次。首版支持动态注册的公共客户端，每分钟最多注册 30 个客户端、同时保留最多 100 个待确认申请，不使用第三方身份提供商。
+D1 中的 `oauth_clients`、`oauth_requests`、`oauth_grants` 和 `oauth_tokens` 保存授权状态；凭证只保存 SHA-256 摘要。授权申请有效期 10 分钟，授权码 5 分钟且只能使用一次。首版支持动态注册的公共客户端，每分钟最多注册 30 个客户端、同时保留最多 100 个待确认申请，不使用第三方身份提供商。
 
 工具范围：
 
@@ -67,13 +67,10 @@ codex mcp login nono-timetable --scopes timetable
 
 时间冲突、系列修改丢失单次调整、重复系列的范围删除会先返回 `confirmation_required`、影响详情和 10 分钟有效的确认凭据。agent 应展示详情并取得用户同意，再使用**完全相同的参数**和凭据重试。凭据绑定本次操作、授权和完整课表版本；任何课程变化后需重新预览确认。数据库事务会在最终写入时再次验证快照和授权，系列拆分整体成功或回滚。服务端能验证预览与执行一致，但不能证明 agent 确实询问了用户，因此只连接可信的个人 agent。
 
-本地数据库集成验证（仅使用专用临时容器）：
+本地数据库集成验证使用隔离的 Miniflare D1，无需生产密钥或 Docker：
 
-```powershell
-docker run --name nono-mcp-check-20261008 --label codex.task=nono-mcp-check-20261008 --tmpfs /var/lib/postgresql/data -e POSTGRES_PASSWORD=local-test-only -d postgres:17-alpine
-$env:NONO_MCP_TEST_CONTAINER = "nono-mcp-check-20261008"
-npm test -- server/mcp.integration.test.ts
-docker rm -f nono-mcp-check-20261008
+```bash
+npm test -- server/db.test.ts server/mcp.integration.test.ts
 ```
 
 测试覆盖 OAuth 会话鉴权、回调/PKCE/资源绑定、刷新并发与重用撤销、完整课表快照检查、事务回滚，以及官方 MCP 客户端的协议调用。浏览器手工检查可先构建，再设置 `NONO_MCP_BROWSER_CHECK=1`，运行同一测试的 `serves the real APIs` 用例；仅监听 `127.0.0.1:4175`，使用临时密码 `mcp-local-check`，访问 `/__test__/stop` 结束。该测试不会读取真实数据库配置。
@@ -85,15 +82,15 @@ npm install
 npm run dev
 ```
 
-本地联调使用 `npm run dev:pages`，在 Git 忽略的 `.dev.vars` 中配置开发环境密钥和 `PUBLIC_ORIGIN=http://127.0.0.1:8788`。请使用独立测试数据库，避免本地修改生产数据。`npm run dev` 只启动前端。
+本地联调使用 `npm run dev:pages`，在 Git 忽略的 `.dev.vars` 中配置开发环境密钥和 `PUBLIC_ORIGIN=http://127.0.0.1:8788`。先运行 `npx wrangler d1 migrations apply nono-timetable --local` 初始化本地数据库；本地 D1 与生产数据隔离。`npm run dev` 只启动前端。
 
 ## 部署
 
 Cloudflare Pages 原生关联 GitHub 仓库 `oiiDawn/nono-timetable`，推送到 `main` 后自动构建并发布到 `https://nono-timetable.pages.dev`。构建命令为 `npm ci && npm test && npm run build`，输出目录为 `dist`，根目录为仓库根目录。构建命令按 npm 锁文件安装依赖；`.node-version` 指定 Node.js 24。预览分支不自动部署，也不配置生产密钥。
 
-`wrangler.jsonc` 定义 Pages 项目、运行时兼容日期和公开站点地址。`functions/[[path]].ts` 将 API、OAuth 发现与私密日历路由交给现有服务端处理；`public/_routes.json` 让静态资源直接由 Pages 提供。
+`wrangler.jsonc` 定义 Pages 项目、D1 绑定、Node.js 兼容能力和公开站点地址。`functions/[[path]].ts` 将 API、OAuth 发现与私密日历路由交给现有服务端处理；`public/_routes.json` 让静态资源直接由 Pages 提供。
 
-数据库保留在 Neon，不需要导出再导入，也不要删除管理该数据库的集成。本次迁移沿用原密码哈希和高德 key，重新生成了会话密钥与日历 token；新域名需要重新登录。日历订阅和 MCP 客户端需更新为新域名并重新授权。
+生产数据、课程与学生资料、OAuth 授权均保存在同一账户的 D1。应用通过请求上下文中的 `DB` 绑定访问数据库；多语句写入使用 D1 batch 事务，保留版本冲突检查、课程拆分回滚和令牌重用撤销。
 
 ## 构建
 
@@ -106,13 +103,4 @@ npm run preview
 
 `npm test` 验证地点输入、重复课继承及覆盖、搜索鉴权和日历输出。
 
-数据库检查使用专用临时 PostgreSQL 容器（不能指向业务数据库）：
-
-```powershell
-docker run --name nono-location-check-20261008 --label codex.task=nono-location-check-20261008 --tmpfs /var/lib/postgresql/data -e POSTGRES_PASSWORD=local-test-only -d postgres:17-alpine
-$env:NONO_TEST_POSTGRES_CONTAINER = "nono-location-check-20261008"
-npm test -- server/db.test.ts
-docker rm -f nono-location-check-20261008
-```
-
-测试先检查容器的专用标签，再重建其中的测试表，验证已有表的幂等增列、系列拆分成功、旧版本冲突和新 ID 冲突的回滚。
+`npm test` 同时运行真实本地 D1 集成测试，覆盖 JSON 往返、课程拆分、版本冲突、事务回滚、OAuth 并发轮换和 MCP 协议调用。测试数据库运行完即释放，不访问生产数据。

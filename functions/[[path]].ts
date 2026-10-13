@@ -12,6 +12,8 @@ import mcp from "../api/mcp.js";
 import oauth from "../api/oauth.js";
 import settings from "../api/settings.js";
 import { json } from "../server/http.js";
+import { withDatabase } from "../server/database.js";
+import type { D1Database } from "@cloudflare/workers-types";
 
 type Handler = { fetch(request: Request): Response | Promise<Response> };
 const routes: Record<string, Handler> = {
@@ -29,6 +31,14 @@ const routes: Record<string, Handler> = {
 };
 
 export function onRequest(context: {
+  request: Request;
+  env: { DB: D1Database };
+  next(): Promise<Response>;
+}): Response | Promise<Response> {
+  return withDatabase(context.env.DB, () => routeRequest(context));
+}
+
+function routeRequest(context: {
   request: Request;
   next(): Promise<Response>;
 }): Response | Promise<Response> {
